@@ -87,15 +87,18 @@ class CustomerController extends Controller
     public function create(Request $request)
     {
         $phone = Customer::normalizePhone($request->query('phone'));
+        $prefill = $request->only(['name', 'interest', 'governorate', 'district', 'address']);
 
-        return view('customers.form', ['customer' => new Customer(['status' => 'مفتوحة', 'phone' => $phone]), 'staff' => $this->staff()]);
+        return view('customers.form', [
+            'customer' => new Customer(array_filter($prefill) + ['status' => 'مفتوحة', 'phone' => $phone]),
+            'staff' => $this->staff(), 'leadId' => $request->query('lead_id'),
+        ]);
     }
 
     public function store(Request $request, DealService $deals)
     {
         $data = $this->validated($request);
-        $this->assertNotDuplicate($data['phone']);
-        $this->assertAltNotDuplicate($data['alt_phone'] ?? null, $data['phone']);
+        $this->assertPhoneSlotsNotDuplicate($data);
 
         $user = $request->user();
         $data['created_by'] = $user->id;
@@ -104,6 +107,17 @@ class CustomerController extends Controller
         $customer = Customer::create($data);
         Activity::log('customer.create', $customer, 'إضافة العميل ' . $customer->name);
         Activity::customer($customer, 'created', 'تم إدخال العميل بواسطة ' . $user->name);
+
+        if ($customer->interest) {
+            $customer->vehicles()->create(['vehicle' => $customer->interest, 'created_by' => $user->id]);
+        }
+
+        if ($request->filled('lead_id')) {
+            $lead = \App\Models\Lead::find((int) $request->input('lead_id'));
+            if ($lead && ($user->isAdmin() || $lead->assigned_to === $user->id)) {
+                $lead->update(['status' => 'converted', 'customer_id' => $customer->id, 'converted_at' => now()]);
+            }
+        }
 
         if ($request->boolean('with_deal')) {
             $dealData = $request->validate($this->dealRules());
@@ -126,11 +140,12 @@ class CustomerController extends Controller
 
         $customer->load(['creator:id,name,role', 'assignee:id,name,role']);
         $deals = $customer->deals()->with(['installments', 'payments.receiver:id,name', 'creator:id,name'])->latest()->get();
-        $followups = $customer->followups()->with(['assignee:id,name', 'completer:id,name', 'creator:id,name'])->orderByRaw("status = 'pending' desc")->orderBy('due_date', 'desc')->get();
+        $followups = $customer->followups()->with(['assignee:id,name', 'completer:id,name', 'creator:id,name'])->latest('created_at')->latest('id')->get();
         $events = $customer->events()->with('user:id,name')->limit(60)->get();
+        $vehicles = $customer->vehicles()->with('creator:id,name')->get();
 
         return view('customers.show', [
-            'customer' => $customer, 'deals' => $deals, 'followups' => $followups, 'events' => $events,
+            'customer' => $customer, 'deals' => $deals, 'followups' => $followups, 'events' => $events, 'vehicles' => $vehicles,
             'staff' => $this->staff(),
         ]);
     }
@@ -146,12 +161,7 @@ class CustomerController extends Controller
     {
         $this->ensureCanSee($customer);
         $data = $this->validated($request, $customer);
-        if ($data['phone'] !== $customer->phone) {
-            $this->assertNotDuplicate($data['phone'], $customer->id);
-        }
-        if (($data['alt_phone'] ?? null) !== $customer->alt_phone) {
-            $this->assertAltNotDuplicate($data['alt_phone'] ?? null, $data['phone'], $customer->id);
-        }
+        $this->assertPhoneSlotsNotDuplicate($data, $customer->id);
 
         $customer->fill($data);
         $changed = collect($customer->getDirty())->except(['updated_at', 'nat_id_hash'])->keys();
@@ -192,6 +202,31 @@ class CustomerController extends Controller
         return back()->with('success', 'تم نقل العميل إلى ' . $new->name);
     }
 
+    /** Add another vehicle interest to the customer file (newest shown first); also becomes the primary `interest`. */
+    public function storeVehicle(Request $request, Customer $customer)
+    {
+        $this->ensureCanSee($customer);
+        $data = $request->validate([
+            'vehicle' => ['required', 'string', 'max:150'],
+            'notes' => ['nullable', 'string', 'max:250'],
+        ]);
+        $customer->vehicles()->create($data + ['created_by' => $request->user()->id]);
+        $customer->update(['interest' => $data['vehicle']]);
+        Activity::customer($customer, 'vehicle', 'إضافة مركبة مطلوبة: ' . $data['vehicle']);
+
+        return back()->with('success', 'تمت إضافة المركبة.');
+    }
+
+    public function destroyVehicle(Customer $customer, \App\Models\CustomerVehicle $vehicle)
+    {
+        $this->ensureCanSee($customer);
+        abort_unless($vehicle->customer_id === $customer->id, 404);
+        abort_unless(auth()->user()->isAdmin() || $vehicle->created_by === auth()->id(), 403);
+        $vehicle->delete();
+
+        return back()->with('success', 'تم حذف المركبة.');
+    }
+
     /** Autocomplete for pickers (scoped, throttled by route). */
     public function lookup(Request $request)
     {
@@ -211,7 +246,7 @@ class CustomerController extends Controller
         if (! $phone || strlen($phone) < 8) {
             return response()->json(['exists' => false, 'short' => true]);
         }
-        $c = Customer::with('creator:id,name')->where(fn ($w) => $w->where('phone', $phone)->orWhere('alt_phone', $phone))->first();
+        $c = Customer::with('creator:id,name')->where(fn ($w) => $w->where('phone', $phone)->orWhere('alt_phone', $phone)->orWhere('whatsapp', $phone))->first();
 
         return response()->json($c ? [
             'exists' => true, 'code' => $c->code, 'by' => $c->creator?->name, 'since' => $c->created_at->format('Y/m/d'),
@@ -229,32 +264,30 @@ class CustomerController extends Controller
         return auth()->user()->isAdmin() ? User::where('is_active', true)->orderBy('name')->get(['id', 'name']) : collect();
     }
 
-    /** The alternative number must not belong to another customer either. */
-    private function assertAltNotDuplicate(?string $alt, string $main, ?int $ignoreId = null): void
+    /**
+     * Check all 3 phone/WhatsApp slots (phone, alt_phone, whatsapp) of the submitted customer
+     * against all 3 columns of every other existing customer — a hit on any slot, even the
+     * 3rd (whatsapp) against a non-primary existing number, must block with a direct link.
+     */
+    private function assertPhoneSlotsNotDuplicate(array $data, ?int $ignoreId = null): void
     {
-        $alt = Customer::normalizePhone($alt);
-        if (! $alt || $alt === Customer::normalizePhone($main)) {
-            return;
-        }
-        $q = Customer::with('creator:id,name')->where(fn ($w) => $w->where('phone', $alt)->orWhere('alt_phone', $alt));
-        $ignoreId && $q->whereKeyNot($ignoreId);
-        if ($dup = $q->first()) {
-            abort(back()->withInput()->withErrors([
-                'alt_phone' => "الهاتف البديل مسجل بالفعل لعميل آخر (كود {$dup->code}) وأدخله " . ($dup->creator?->name ?? 'النظام') . ' بتاريخ ' . $dup->created_at->format('Y/m/d') . '.',
-            ]));
-        }
-    }
-
-    private function assertNotDuplicate(string $phone, ?int $ignoreId = null): void
-    {
-        $q = Customer::with('creator:id,name')->where(fn ($w) => $w->where('phone', $phone)->orWhere('alt_phone', $phone));
-        if ($ignoreId) {
-            $q->whereKeyNot($ignoreId);
-        }
-        if ($dup = $q->first()) {
-            abort(back()->withInput()->withErrors([
-                'phone' => "هذا الرقم مسجل بالفعل للعميل (كود {$dup->code}) وأدخله " . ($dup->creator?->name ?? 'النظام') . ' بتاريخ ' . $dup->created_at->format('Y/m/d') . '.',
-            ]));
+        $labels = ['phone' => 'رقم الهاتف', 'alt_phone' => 'الهاتف البديل', 'whatsapp' => 'رقم الواتساب'];
+        $checked = [];
+        foreach (['phone', 'alt_phone', 'whatsapp'] as $field) {
+            $num = $data[$field] ?? null;
+            if (! $num || in_array($num, $checked, true)) {
+                continue;
+            }
+            $checked[] = $num;
+            $q = Customer::with('creator:id,name')->where(function ($w) use ($num) {
+                $w->where('phone', $num)->orWhere('alt_phone', $num)->orWhere('whatsapp', $num);
+            });
+            $ignoreId && $q->whereKeyNot($ignoreId);
+            if ($dup = $q->first()) {
+                abort(back()->withInput()->withErrors([
+                    $field => "{$labels[$field]} مسجل بالفعل للعميل (كود {$dup->code}) وأدخله " . ($dup->creator?->name ?? 'النظام') . ' بتاريخ ' . $dup->created_at->format('Y/m/d') . '.',
+                ]));
+            }
         }
     }
 

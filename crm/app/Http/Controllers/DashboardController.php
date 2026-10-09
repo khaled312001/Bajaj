@@ -54,6 +54,18 @@ class DashboardController extends Controller
         $todayFollowups = Followup::visibleTo($user)->pending()->with('customer:id,name,phone,code', 'assignee:id,name')
             ->whereDate('due_date', '<=', today())->orderBy('due_date')->orderByRaw("priority = 'high' desc")->limit(8)->get();
 
+        // a once-per-day "you have followups today" notice, the first time this user opens the dashboard each day
+        $dailyNotice = null;
+        if ($request->session()->get('followups_notice_date') !== today()->toDateString()) {
+            $request->session()->put('followups_notice_date', today()->toDateString());
+            $dueToday = Followup::visibleTo($user)->pending()->whereDate('due_date', today())->count();
+            $overdue = $stats['overdue_followups'];
+            if ($dueToday || $overdue) {
+                $names = $todayFollowups->take(3)->map(fn ($f) => $f->customer?->name)->filter()->implode('، ');
+                $dailyNotice = trim(($dueToday ? "لديك {$dueToday} متابعة مستحقة اليوم" : '') . ($overdue ? ($dueToday ? ' و' : 'لديك ') . "{$overdue} متابعة متأخرة" : '') . ($names ? ": {$names}" : ''));
+            }
+        }
+
         $recent = (clone $customers)->with('creator:id,name')->latest('customers.created_at')->limit(7)->get();
 
         // charts
@@ -75,7 +87,7 @@ class DashboardController extends Controller
             'stats' => $stats, 'todayFollowups' => $todayFollowups, 'recent' => $recent,
             'statusChart' => ['labels' => $statusData->keys()->all(), 'data' => $statusData->values()->all()],
             'dayChart' => ['labels' => $days->map->format('m/d')->all(), 'data' => $days->map(fn ($d) => (int) ($perDay[$d->toDateString()] ?? 0))->all()],
-            'byEmployee' => $byEmployee, 'dueInstallments' => $dueInstallments, 'alerts' => $alerts,
+            'byEmployee' => $byEmployee, 'dueInstallments' => $dueInstallments, 'alerts' => $alerts, 'dailyNotice' => $dailyNotice,
         ]);
     }
 

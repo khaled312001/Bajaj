@@ -53,6 +53,14 @@
             <div class="field span-2"><label>عناوين IP المسموح بها للموظفين (اختياري)</label><input class="input" name="agent_ip_allowlist" value="{{ $s('agent_ip_allowlist') }}" dir="ltr" style="text-align:right" placeholder="مثال: 197.55.10.20, 41.33.8.9"><div class="hint">إن تركته فارغاً يُسمح من أي مكان. إن حددته لن يدخل الموظفون إلا من هذه العناوين. (عنوانك الحالي: <span class="num">{{ request()->ip() }}</span>)</div></div>
             <div class="field"><label>تنبيه عند فتح ملفات (كل 10 دقائق)</label><input class="input" type="number" name="view_alert_threshold" value="{{ $s('view_alert_threshold', 40) }}" min="5"><div class="hint">يظهر تنبيه أمني لك عند تجاوز هذا العدد.</div></div>
             <div class="field"><label>إيقاف مؤقت عند فتح ملفات</label><input class="input" type="number" name="view_block_threshold" value="{{ $s('view_block_threshold', 90) }}" min="10"><div class="hint">يُمنع الموظف مؤقتاً عند تجاوزه هذا العدد (كشف التجميع الآلي).</div></div>
+
+            <div class="form-section"><i class="fa-solid fa-link"></i> نموذج طلب العملاء العام (الليدز)</div>
+            <div class="field span-3">
+                <label class="check"><input type="hidden" name="lead_form_enabled" value="0"><input type="checkbox" name="lead_form_enabled" value="1" @checked($s('lead_form_enabled', '1') === '1')> تفعيل نموذج الطلب العام</label>
+                <div class="hint">رابط النموذج العام (شاركه مع العملاء): <a href="{{ route('lead.public') }}" target="_blank">{{ route('lead.public') }}</a> — الطلبات الواردة تظهر في <a href="{{ route('leads.index') }}">صفحة الليدز</a> لتعيينها لموظفي المبيعات.</div>
+            </div>
+            <div class="field span-2"><label>عنوان النموذج</label><input class="input" name="lead_form_title" value="{{ $s('lead_form_title', 'اطلب مركبتك الآن') }}" maxlength="120"></div>
+            <div class="field span-3"><label>مقدمة النموذج</label><textarea class="input" rows="2" name="lead_form_intro" maxlength="400">{{ $s('lead_form_intro', 'املأ بياناتك وسيتواصل معك فريق المبيعات في أقرب وقت.') }}</textarea></div>
         </div>
         <div class="form-actions"><button class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> حفظ الإعدادات</button></div>
     </div>

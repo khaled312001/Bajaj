@@ -173,7 +173,8 @@
     document.addEventListener('click', (e) => { if (!wrap.contains(e.target)) list.classList.remove('open'); });
   });
 
-  /* duplicate phone check on customer form */
+  /* duplicate phone/alt/whatsapp check on customer form — any of the 3 slots is checked
+     against the other customers' 3 columns; the main phone field keeps the original inline box */
   const phone = $('#phone-input'), dupBox = $('#dup-box');
   if (phone && dupBox) {
     let t; phone.addEventListener('input', () => { clearTimeout(t); t = setTimeout(async () => {
@@ -183,17 +184,35 @@
       } catch (_) {} }, 400); });
   }
 
-  /* alternative number: warn right away if it is already registered to another customer */
-  const alt = document.querySelector('input[name=alt_phone]');
-  if (alt && dupBox) {
-    const warn = document.createElement('div'); warn.className = 'pill-alert'; warn.style.cssText = 'display:none;margin-top:8px'; alt.parentNode.appendChild(warn);
-    let t2; alt.addEventListener('input', () => { clearTimeout(t2); t2 = setTimeout(async () => {
-      const v = alt.value.replace(/\D/g, ''); const main = (phone ? phone.value : '').replace(/\D/g, '');
-      if (v.length < 8 || (main && v.slice(-10) === main.slice(-10))) { warn.style.display = 'none'; return; }
+  /* alternative number + whatsapp: warn right away if either is already registered to another customer */
+  const otherSlots = ['input[name=alt_phone]', 'input[name=whatsapp]'].map((sel) => document.querySelector(sel)).filter(Boolean);
+  otherSlots.forEach((slot) => {
+    if (!dupBox) return;
+    const warn = document.createElement('div'); warn.className = 'pill-alert'; warn.style.cssText = 'display:none;margin-top:8px'; slot.parentNode.appendChild(warn);
+    let t2; slot.addEventListener('input', () => { clearTimeout(t2); t2 = setTimeout(async () => {
+      const v = slot.value.replace(/\D/g, '');
+      const others = otherSlots.concat(phone ? [phone] : []).filter((s) => s !== slot).map((s) => s.value.replace(/\D/g, ''));
+      if (v.length < 8 || others.some((o) => o && o.slice(-10) === v.slice(-10))) { warn.style.display = 'none'; return; }
       try { const r = await fetch(dupBox.dataset.url + '?phone=' + v, { headers: { Accept: 'application/json' } }); const d = await r.json();
         if (d.exists && d.code !== dupBox.dataset.self) { warn.style.display = 'flex'; warn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i><span>تنبيه: هذا الرقم مسجل بالفعل لعميل آخر (كود ' + d.code + ') — أدخله ' + (d.by || 'النظام') + ' بتاريخ ' + d.since + '</span>' + (d.can_open ? '<a class="btn btn-xs btn-danger" style="margin-right:auto" target="_blank" rel="noopener" href="' + d.url + '">فتح الملف</a>' : ''); }
         else warn.style.display = 'none'; } catch (_) {} }, 400); });
-  }
+  });
+
+  /* cascading Egypt governorate -> مركز selects (resources/views/partials/geo_fields.blade.php) */
+  $$('select.geo-gov').forEach((gov) => {
+    const field = gov.closest('.field');
+    const center = field && field.nextElementSibling ? field.nextElementSibling.querySelector('select.geo-center') : null;
+    if (!center || !window.EGYPT_GEO) return;
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const fill = (keepCurrent) => {
+      const list = window.EGYPT_GEO[gov.value] || [];
+      const cur = keepCurrent ? (center.dataset.current || '') : '';
+      center.innerHTML = '<option value="">— اختر —</option>' + list.map((c) => '<option' + (c === cur ? ' selected' : '') + '>' + esc(c) + '</option>').join('');
+      if (cur && !list.includes(cur)) center.insertAdjacentHTML('afterbegin', '<option selected>' + esc(cur) + '</option>');
+    };
+    gov.addEventListener('change', () => { center.dataset.current = ''; fill(false); });
+    if (gov.value) fill(true);
+  });
 
   /* charts */
   window.makeChart = (id, cfg) => {

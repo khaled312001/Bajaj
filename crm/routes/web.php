@@ -3,11 +3,14 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\CalculatorController;
+use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DataController;
 use App\Http\Controllers\DealController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\LeadController;
+use App\Http\Controllers\ReassignmentRequestController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\BackupController;
@@ -21,12 +24,16 @@ use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 /* ---------- public: login gateways ---------- */
-Route::get('/', [LoginController::class, 'gateway'])->name('gateway');
+Route::get('/', [LoginController::class, 'gateway'])->middleware('throttle:60,1')->name('gateway');
+
+/* ---------- public: lead-capture form (shareable link, no auth) ---------- */
+Route::get('/lead', [LeadController::class, 'publicForm'])->middleware('throttle:60,1')->name('lead.public');
+Route::post('/lead', [LeadController::class, 'publicStore'])->middleware('throttle:10,1')->name('lead.store');
 
 Route::middleware('guest')->group(function () {
-    Route::get('/admin/login', [LoginController::class, 'showAdmin'])->name('admin.login');
+    Route::get('/admin/login', [LoginController::class, 'showAdmin'])->middleware('throttle:60,1')->name('admin.login');
     Route::post('/admin/login', [LoginController::class, 'loginAdmin'])->middleware('throttle:10,1');
-    Route::get('/staff/login', [LoginController::class, 'showStaff'])->name('staff.login');
+    Route::get('/staff/login', [LoginController::class, 'showStaff'])->middleware('throttle:60,1')->name('staff.login');
     Route::post('/staff/login', [LoginController::class, 'loginStaff'])->middleware('throttle:10,1');
 });
 
@@ -52,6 +59,8 @@ Route::middleware(['auth', 'guard.app'])->group(function () {
     Route::match(['put', 'patch'], '/customers/{customer}', [CustomerController::class, 'update'])->middleware('perm:customers,edit')->name('customers.update');
     Route::post('/customers/{customer}/assign', [CustomerController::class, 'assign'])->middleware('role:admin')->name('customers.assign');
     Route::delete('/customers/{customer}', [CustomerController::class, 'destroy'])->middleware('perm:customers,delete')->name('customers.destroy');
+    Route::post('/customers/{customer}/vehicles', [CustomerController::class, 'storeVehicle'])->middleware('perm:customers,edit')->name('customers.vehicles.store');
+    Route::delete('/customers/{customer}/vehicles/{vehicle}', [CustomerController::class, 'destroyVehicle'])->middleware('perm:customers,edit')->name('customers.vehicles.destroy');
 
     // deals, installments, payments
     Route::get('/customers/{customer}/deals/create', [DealController::class, 'create'])->middleware('perm:deals,create')->name('deals.create');
@@ -100,6 +109,21 @@ Route::middleware(['auth', 'guard.app'])->group(function () {
     Route::put('/products/{product}', [ProductController::class, 'update'])->middleware('perm:products,edit')->name('products.update');
     Route::delete('/products/{product}', [ProductController::class, 'destroy'])->middleware('perm:products,delete')->name('products.destroy');
 
+    // leads: convert is reachable by the assigned employee too (authorized in-controller); the inbox itself is admin-only below
+    Route::get('/leads/{lead}/convert', [LeadController::class, 'convert'])->name('leads.convert');
+
+    Route::post('/customers/{customer}/reassignment-requests', [ReassignmentRequestController::class, 'store'])->middleware('perm:customers,view')->name('reassignments.store');
+
+    // internal chat — available to every authenticated user, admin or staff
+    Route::get('/chat', [ChatController::class, 'index'])->name('chat.index');
+    Route::post('/chat/start', [ChatController::class, 'start'])->name('chat.start');
+    Route::get('/chat/unread-count', [ChatController::class, 'unreadCount'])->name('chat.unread');
+    Route::get('/chat/search-customers', [ChatController::class, 'searchCustomers'])->name('chat.search-customers');
+    Route::get('/chat/voice/{message}', [ChatController::class, 'voice'])->name('chat.voice');
+    Route::get('/chat/{conversation}', [ChatController::class, 'show'])->name('chat.show');
+    Route::get('/chat/{conversation}/messages', [ChatController::class, 'messages'])->name('chat.messages');
+    Route::post('/chat/{conversation}/messages', [ChatController::class, 'send'])->name('chat.send');
+
     /* ---------- admin only ---------- */
     Route::middleware('role:admin')->group(function () {
         Route::get('/reports/{key}/pdf', [ReportController::class, 'pdf'])->name('reports.pdf');
@@ -137,9 +161,17 @@ Route::middleware(['auth', 'guard.app'])->group(function () {
         Route::post('/backups', [BackupController::class, 'run'])->name('backups.run');
         Route::post('/backups/settings', [BackupController::class, 'settings'])->name('backups.settings');
         Route::get('/backups/{backup}/download', [BackupController::class, 'download'])->name('backups.download');
+        Route::post('/backups/{backup}/restore', [BackupController::class, 'restore'])->name('backups.restore');
         Route::delete('/backups/{backup}', [BackupController::class, 'destroy'])->name('backups.destroy');
 
         Route::get('/vehicles/export', [VehicleController::class, 'export'])->name('vehicles.export');
 
+        Route::get('/leads', [LeadController::class, 'index'])->name('leads.index');
+        Route::post('/leads/assign', [LeadController::class, 'assign'])->name('leads.assign');
+        Route::post('/leads/{lead}/reject', [LeadController::class, 'reject'])->name('leads.reject');
+
+        Route::get('/reassignment-requests', [ReassignmentRequestController::class, 'index'])->name('reassignments.index');
+        Route::post('/reassignment-requests/{reassignment}/approve', [ReassignmentRequestController::class, 'approve'])->name('reassignments.approve');
+        Route::post('/reassignment-requests/{reassignment}/reject', [ReassignmentRequestController::class, 'reject'])->name('reassignments.reject');
     });
 });

@@ -8,7 +8,10 @@
     $sign = function ($label) { return '<table class="sign"><tr><td><div class="line">&nbsp;</div>' . $label . '</td></tr></table>'; };
 @endphp
 
-<h1 class="title">{{ $type === 'mobaya' && ! empty($d['retain_title']) ? 'مبايعة (مع الاحتفاظ بحق الملكية)' : $def['title'] }}</h1>
+@php
+    $docTitle = $type === 'mobaya' && ! empty($d['retain_title']) ? 'مبايعة (مع الاحتفاظ بحق الملكية)' : $def['title'];
+@endphp
+<h1 class="title doc-title">{{ \App\Support\ArabicTypography::kashidaTitle($docTitle) }}</h1>
 <div class="title-line">رقم المستند: {{ $docNo }}</div>
 
 @switch($type)
@@ -131,7 +134,9 @@
     <table class="data"><thead><tr><th>#</th><th>النوع</th><th>الموديل</th><th>اللون</th><th>الشاسيه</th><th>الموتور</th></tr></thead><tbody>
     @foreach(preg_split('/\R+/', trim((string) ($d['items'] ?? ''))) as $line)
         @continue(trim($line) === '')
-        @php $c = array_pad(array_map('trim', explode('|', $line)), 5, ''); @endphp
+        @php
+            $c = array_pad(array_map('trim', explode('|', $line)), 5, '');
+        @endphp
         <tr class="{{ $loop->even ? 'alt' : '' }}"><td class="n">{{ $loop->iteration }}</td><td class="n">{{ $c[0] }}</td><td class="n">{{ $c[1] }}</td><td class="n">{{ $c[2] }}</td><td class="n" dir="ltr">{{ $c[3] }}</td><td class="n" dir="ltr">{{ $c[4] }}</td></tr>
     @endforeach</tbody></table>
     <p class="text serif">وأني استلمت جميع الملحقات الخاصة بها ولا يحق لي أو للغير الرجوع على الشركة.</p>

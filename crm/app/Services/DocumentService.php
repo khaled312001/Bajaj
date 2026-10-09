@@ -76,6 +76,10 @@ class DocumentService
         if (! $t) {
             return false;
         }
+        // Invoices: admin-only, regardless of a staff member's legal_documents permission.
+        if ($key === 'invoice') {
+            return $user->isAdmin();
+        }
 
         return $user->allows($t['agent'] ? 'documents' : 'legal_documents', 'create');
     }

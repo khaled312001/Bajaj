@@ -26,6 +26,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(fn (Request $r) => route('staff.login'));
         $middleware->redirectUsersTo(fn (Request $r) => route('dashboard'));
         $middleware->trustProxies(at: '*');
+        // Blunt bot/scraper floods and runaway scripts before they can push shared-hosting CPU/process limits to 100%.
+        // Generous enough for a small office sharing one NAT IP (chat polling, dashboards, exports) to never notice it.
+        // Distinct prefix so this shared counter never collides with the tighter per-route throttles (e.g. login, lead form),
+        // which otherwise resolve to the same cache key for guests (domain+IP only, no route) and would double-count hits.
+        $middleware->web(append: ['throttle:600,1,global']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(fn (Request $request, Throwable $e) => $request->is('api/*') || $request->expectsJson());

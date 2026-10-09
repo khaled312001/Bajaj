@@ -102,6 +102,22 @@ class Customer extends Model
         return $this->hasMany(CustomerEvent::class)->latest('created_at')->latest('id');
     }
 
+    public function vehicles(): HasMany
+    {
+        return $this->hasMany(CustomerVehicle::class)->latest('created_at')->latest('id');
+    }
+
+    public function reassignmentRequests(): HasMany
+    {
+        return $this->hasMany(ReassignmentRequest::class);
+    }
+
+    /** True when a pending follow-up has gone unactioned for 48h+ (eligible for a takeover request). */
+    public function hasStaleFollowup(): bool
+    {
+        return $this->followups()->where('status', 'pending')->where('due_date', '<=', today()->subDays(2))->exists();
+    }
+
     /* ---- Scopes ---- */
 
     /** Restrict customers an agent may see according to the admin-configured scope. */

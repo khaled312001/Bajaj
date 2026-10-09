@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Backup;
+use App\Support\Activity;
+use App\Support\ResourceGuard;
 use App\Support\Settings;
 use Illuminate\Support\Facades\DB;
 
@@ -29,6 +31,7 @@ class BackupService
         $rows = 0;
 
         try {
+            ResourceGuard::ensureHeadroom('النسخ الاحتياطي');
             $gz = gzopen($path, 'wb6');
             if (! $gz) {
                 throw new \RuntimeException('تعذر إنشاء ملف النسخة الاحتياطية.');
@@ -77,6 +80,73 @@ class BackupService
 
             return Backup::create(['filename' => $name, 'size' => 0, 'kind' => $kind, 'status' => 'failed', 'error' => mb_substr($e->getMessage(), 0, 500), 'created_by' => $userId]);
         }
+    }
+
+    /**
+     * Re-import a previous backup's SQL dump into the live database.
+     * Always takes a fresh safety backup of the CURRENT state first, so a bad restore can itself be undone.
+     */
+    public static function restore(Backup $backup, ?int $userId = null): Backup
+    {
+        @set_time_limit(0);
+        ResourceGuard::ensureHeadroom('استرجاع النسخة الاحتياطية');
+        self::run('pre_restore', $userId);
+
+        $pdo = DB::connection()->getPdo();
+        $gz = gzopen($backup->path(), 'rb');
+        if (! $gz) {
+            throw new \RuntimeException('تعذر فتح ملف النسخة الاحتياطية.');
+        }
+
+        $buffer = '';
+        $inString = false;
+        $escapeNext = false;
+        $statements = 0;
+        try {
+            $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
+            while (! gzeof($gz)) {
+                $chunk = gzread($gz, 65536);
+                for ($i = 0, $len = strlen($chunk); $i < $len; $i++) {
+                    $ch = $chunk[$i];
+                    $buffer .= $ch;
+                    if ($inString) {
+                        if ($escapeNext) {
+                            $escapeNext = false;
+                        } elseif ($ch === '\\') {
+                            $escapeNext = true;
+                        } elseif ($ch === "'") {
+                            $inString = false;
+                        }
+
+                        continue;
+                    }
+                    if ($ch === "'") {
+                        $inString = true;
+                    } elseif ($ch === ';') {
+                        $stmt = trim($buffer);
+                        $buffer = '';
+                        // the `backups` table itself is never touched by a restore, so the restore history
+                        // (including the pre-restore safety backup just taken above) survives the restore.
+                        if ($stmt !== '' && ! str_starts_with($stmt, '--') && ! preg_match('/^(DROP TABLE IF EXISTS|CREATE TABLE|INSERT INTO)\s+`backups`/i', $stmt)) {
+                            $pdo->exec($stmt);
+                            $statements++;
+                        }
+                    }
+                }
+            }
+            $rest = trim($buffer);
+            if ($rest !== '' && ! str_starts_with($rest, '--') && ! preg_match('/^(DROP TABLE IF EXISTS|CREATE TABLE|INSERT INTO)\s+`backups`/i', $rest)) {
+                $pdo->exec($rest);
+                $statements++;
+            }
+            $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
+        } finally {
+            gzclose($gz);
+        }
+
+        Activity::log('backup', null, "استرجاع نسخة احتياطية {$backup->filename} ({$statements} أمر SQL)");
+
+        return $backup;
     }
 
     public static function prune(): void

@@ -40,6 +40,8 @@ class SettingsController extends Controller
             'company_address' => ['nullable', 'string', 'max:200'],
             'company_legal_name' => ['nullable', 'string', 'max:120'], 'commercial_register' => ['nullable', 'string', 'max:40'],
             'tax_card' => ['nullable', 'string', 'max:40'], 'bank_account' => ['nullable', 'string', 'max:120'], 'manager_name' => ['nullable', 'string', 'max:80'],
+            'lead_form_enabled' => ['required', Rule::in(['0', '1'])],
+            'lead_form_title' => ['nullable', 'string', 'max:120'], 'lead_form_intro' => ['nullable', 'string', 'max:400'],
         ], ['agent_ip_allowlist.regex' => 'اكتب عناوين IP مفصولة بفاصلة.']);
 
         // each plan: lines like "12=1.24" -> {12:1.24}

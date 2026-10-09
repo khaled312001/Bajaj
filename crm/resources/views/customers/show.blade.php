@@ -34,6 +34,13 @@
     @if(auth()->user()->allows('customers', 'delete'))<form method="POST" action="{{ route('customers.destroy', $customer) }}" data-confirm="حذف العميل نهائياً مع كل بياناته؟">@csrf @method('DELETE')<button class="btn btn-danger-soft"><i class="fa-solid fa-trash"></i> حذف</button></form>@endif
     @if($isAdmin)
         <button class="btn btn-ghost" data-open="m-assign"><i class="fa-solid fa-right-left" style="color:var(--purple)"></i> نقل لموظف</button>
+    @elseif($customer->assigned_to !== auth()->id() && $customer->hasStaleFollowup())
+        @php($myRequest = $customer->reassignmentRequests()->where('requested_by', auth()->id())->where('status', 'pending')->first())
+        @if($myRequest)
+            <span class="badge amber"><i class="fa-solid fa-hourglass-half"></i> طلب النقل قيد المراجعة</span>
+        @else
+            <form method="POST" action="{{ route('reassignments.store', $customer) }}" data-confirm="طلب نقل هذا العميل إليك بسبب تأخر متابعته 48 ساعة؟">@csrf<button class="btn btn-ghost"><i class="fa-solid fa-hand" style="color:var(--amber)"></i> طلب نقل العميل لي</button></form>
+        @endif
     @endif
 </div>
 
@@ -59,21 +66,39 @@
         </dl></div>
     </div>
 
-    @if($customer->interest || $customer->seriousness)
     <div class="card" style="margin-bottom:18px">
-        <div class="card-head"><h3><i class="fa-solid fa-motorcycle"></i> المنتج المطلوب</h3>
-            <span class="badge {{ $customer->status_class }}">{{ $customer->status === 'منفذة' ? 'تم التنفيذ' : ($customer->status === 'مفقودة' ? 'لم يتم التنفيذ' : 'قيد المتابعة') }}</span></div>
-        <div class="card-body">
-            <div class="row between wrap" style="gap:10px">
-                <div><b style="font-size:17px">{{ $customer->interest ?: 'غير محدد' }}</b>
-                    @if($customer->seriousness)<span class="badge amber" style="margin-right:8px">{{ $customer->seriousness }}</span>@endif
-                    @if($customer->previous_vehicle)<div class="muted small mt">المركبة السابقة: {{ $customer->previous_vehicle }}</div>@endif</div>
-                @if($customer->contacted_at)<div class="muted small">أول تواصل: {{ $customer->contacted_at->format('Y/m/d') }}</div>@endif
+        <div class="card-head"><h3><i class="fa-solid fa-motorcycle"></i> المركبات المطلوبة ({{ $vehicles->count() }})</h3>
+            <div class="row" style="gap:8px">
+                <span class="badge {{ $customer->status_class }}">{{ $customer->status === 'منفذة' ? 'تم التنفيذ' : ($customer->status === 'مفقودة' ? 'لم يتم التنفيذ' : 'قيد المتابعة') }}</span>
+                @if(auth()->user()->allows('customers', 'edit'))<button class="btn btn-sm btn-primary no-print" data-open="m-vehicle-add"><i class="fa-solid fa-plus"></i> إضافة مركبة</button>@endif
             </div>
+        </div>
+        <div class="card-body">
+            @forelse($vehicles as $v)
+                <div class="row between wrap" style="gap:10px;padding:8px 0;{{ ! $loop->last ? 'border-bottom:1px solid var(--line-2)' : '' }}">
+                    <div><b style="font-size:15px">{{ $v->vehicle }}</b>
+                        @if($loop->first)<span class="badge blue" style="margin-right:8px">الأحدث</span>@endif
+                        @if($v->notes)<div class="muted small mt">{{ $v->notes }}</div>@endif
+                    </div>
+                    <div class="row" style="gap:10px">
+                        <div class="muted small">{{ $v->creator?->name ?? '—' }} · {{ $v->created_at->format('Y/m/d') }}</div>
+                        @if(auth()->user()->isAdmin() || $v->created_by === auth()->id())
+                        <form method="POST" action="{{ route('customers.vehicles.destroy', [$customer, $v]) }}" data-confirm="حذف هذه المركبة؟" class="no-print">@csrf @method('DELETE')<button class="btn btn-xs btn-danger-soft"><i class="fa-solid fa-trash"></i></button></form>
+                        @endif
+                    </div>
+                </div>
+            @empty
+                <div class="muted small">لا توجد مركبات مسجلة بعد.</div>
+            @endforelse
+            @if($customer->seriousness || $customer->previous_vehicle)
+                <div class="mt">
+                    @if($customer->seriousness)<span class="badge amber">{{ $customer->seriousness }}</span>@endif
+                    @if($customer->previous_vehicle)<span class="muted small" style="margin-right:8px">المركبة السابقة: {{ $customer->previous_vehicle }}</span>@endif
+                </div>
+            @endif
             @if($customer->status === 'مفقودة' && $customer->loss_reason)<div class="alert alert-warning mt"><i class="fa-solid fa-circle-info"></i><div>سبب عدم التنفيذ: {{ $customer->loss_reason }}</div></div>@endif
         </div>
     </div>
-    @endif
 
     <div id="deals">
     @forelse($deals as $d)
@@ -185,6 +210,18 @@
     </div>
 </div>
 </div>
+
+{{-- add vehicle modal --}}
+<div class="modal" id="m-vehicle-add"><div class="modal-box" style="max-width:460px">
+    <div class="modal-head"><h3><i class="fa-solid fa-motorcycle" style="color:var(--blue-600)"></i> إضافة مركبة مطلوبة</h3><button class="modal-x" data-close="m-vehicle-add"><i class="fa-solid fa-xmark"></i></button></div>
+    <form method="POST" action="{{ route('customers.vehicles.store', $customer) }}">@csrf
+        <div class="modal-body">
+            <div class="field"><label>المركبة <span class="req">*</span></label><select class="input" name="vehicle" required><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('vehicle') as $g)<option>{{ $g }}</option>@endforeach</select></div>
+            <div class="field mt"><label>ملاحظة</label><input class="input" name="notes" maxlength="250"></div>
+        </div>
+        <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close="m-vehicle-add">إلغاء</button><button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> إضافة</button></div>
+    </form>
+</div></div>
 
 {{-- payment modal --}}
 <div class="modal" id="m-pay"><div class="modal-box" style="max-width:480px">

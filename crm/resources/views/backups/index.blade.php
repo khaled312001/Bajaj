@@ -21,7 +21,20 @@
     <div class="card"><div class="card-head"><h3><i class="fa-solid fa-bolt"></i> نسخة الآن</h3></div>
         <div class="card-body"><p class="muted">ينشئ ملف SQL مضغوط (gzip) بكل الجداول: العملاء والصفقات والأقساط والمتابعات والمستخدمين والإعدادات.</p>
             <form method="POST" action="{{ route('backups.run') }}">@csrf<button class="btn btn-green"><i class="fa-solid fa-cloud-arrow-down"></i> إنشاء نسخة احتياطية الآن</button></form>
-            <div class="alert alert-warning mt"><i class="fa-solid fa-triangle-exclamation"></i><div>الملفات تحتوي بيانات العملاء كاملة. احتفظ بها في مكان آمن ولا تشاركها. الاستعادة تتم بأمر: <code dir="ltr">php artisan backup:restore &lt;file&gt;</code></div></div></div></div>
+            <div class="alert alert-warning mt"><i class="fa-solid fa-triangle-exclamation"></i><div>الملفات تحتوي بيانات العملاء كاملة. احتفظ بها في مكان آمن ولا تشاركها. يمكنك استرجاع أي نسخة من الجدول أسفل الصفحة مباشرة من المتصفح.</div></div></div></div>
+</div>
+
+<div class="modal" id="m-restore">
+    <div class="modal-box">
+        <div class="modal-head"><h3><i class="fa-solid fa-clock-rotate-left"></i> استرجاع نسخة احتياطية</h3><button class="modal-x" data-close="m-restore"><i class="fa-solid fa-xmark"></i></button></div>
+        <form method="POST" action="">@csrf
+            <div class="modal-body">
+                <div class="alert alert-error"><i class="fa-solid fa-triangle-exclamation"></i><div><b>تحذير:</b> سيتم استبدال كل بيانات النظام الحالية ببيانات هذه النسخة (<span data-label="date"></span>). سيأخذ النظام نسخة احتياطية من الحالة الحالية أولاً تلقائياً، لكن أي تغييرات حدثت بعد تاريخ هذه النسخة وقبل الاسترجاع ستُفقد ما لم تُستعد لاحقاً من تلك النسخة الاحتياطية التلقائية.</div></div>
+                <div class="field mt"><label>اكتب كلمة «استرجاع» للتأكيد</label><input class="input" type="text" name="confirm" required autocomplete="off"></div>
+            </div>
+            <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close="m-restore">إلغاء</button><button class="btn btn-danger"><i class="fa-solid fa-clock-rotate-left"></i> استرجاع البيانات الآن</button></div>
+        </form>
+    </div>
 </div>
 
 <div class="card"><div class="card-head"><h3><i class="fa-solid fa-list"></i> النسخ المحفوظة</h3></div>
@@ -32,7 +45,9 @@
             <td>@if($b->status === 'ok')<span class="badge green">ناجحة</span>@else<span class="badge red" title="{{ $b->error }}">فشلت</span>@endif</td>
             <td class="muted small">{{ $b->created_at->format('Y/m/d H:i') }}</td>
             <td class="t-left"><div class="btn-group" style="flex-wrap:nowrap">
-                @if($b->status === 'ok' && is_file($b->path()))<a class="btn btn-xs btn-soft" href="{{ route('backups.download', $b) }}"><i class="fa-solid fa-download"></i> تنزيل</a>@elseif($b->status === 'ok')<span class="badge amber" title="الملف غير موجود على السيرفر">الملف مفقود</span>@endif
+                @if($b->status === 'ok' && is_file($b->path()))<a class="btn btn-xs btn-soft" href="{{ route('backups.download', $b) }}"><i class="fa-solid fa-download"></i> تنزيل</a>
+                <button type="button" class="btn btn-xs btn-danger-soft" data-open="m-restore" data-action="{{ route('backups.restore', $b) }}" data-fill-date="{{ $b->created_at->format('Y/m/d H:i') }}"><i class="fa-solid fa-clock-rotate-left"></i> استرجاع</button>
+                @elseif($b->status === 'ok')<span class="badge amber" title="الملف غير موجود على السيرفر">الملف مفقود</span>@endif
                 <form method="POST" action="{{ route('backups.destroy', $b) }}" data-confirm="حذف هذه النسخة؟">@csrf @method('DELETE')<button class="btn btn-xs btn-danger-soft"><i class="fa-solid fa-trash"></i></button></form></div></td></tr>
     @empty<tr><td colspan="7"><div class="empty">لا توجد نسخ بعد</div></td></tr>@endforelse
     </tbody></table></div><div class="card-pad">{{ $backups->links('pagination.rtl') }}</div></div>

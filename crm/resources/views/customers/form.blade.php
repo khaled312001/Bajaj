@@ -7,6 +7,7 @@
 @php($isAdmin = auth()->user()->isAdmin())
 <form method="POST" action="{{ $editing ? route('customers.update', $customer) : route('customers.store') }}" class="card">
     @csrf @if($editing) @method('PUT') @endif
+    @if(! $editing && ($leadId ?? request('lead_id')))<input type="hidden" name="lead_id" value="{{ $leadId ?? request('lead_id') }}">@endif
     <div class="card-body">
         <div id="dup-box" class="pill-alert mb" style="display:none" data-url="{{ route('customers.check-phone') }}" data-self="{{ $customer->code }}">
             <i class="fa-solid fa-triangle-exclamation"></i><span></span><a class="btn btn-xs btn-danger" style="margin-right:auto" href="#">فتح الملف</a>
@@ -22,8 +23,7 @@
             <div class="field"><label>المهنة</label><input class="input" name="job" value="{{ old('job', $customer->job) }}"></div>
 
             <div class="form-section"><i class="fa-solid fa-location-dot"></i> العنوان والتصنيف</div>
-            <div class="field"><label>المحافظة</label><select class="input" name="governorate"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('governorate') as $g)<option @selected(old('governorate', $customer->governorate) === $g)>{{ $g }}</option>@endforeach</select></div>
-            <div class="field"><label>المركز / الحي</label><input class="input" name="district" value="{{ old('district', $customer->district) }}"></div>
+            @include('partials.geo_fields', ['govValue' => old('governorate', $customer->governorate), 'centerValue' => old('district', $customer->district)])
             <div class="field"><label>العنوان التفصيلي</label><input class="input" name="address" value="{{ old('address', $customer->address) }}"></div>
             <div class="field"><label>قناة التواصل</label><select class="input" name="channel"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('channel') as $g)<option @selected(old('channel', $customer->channel) === $g)>{{ $g }}</option>@endforeach</select></div>
             <div class="field"><label>المركبة المطلوبة</label><select class="input" name="interest"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('vehicle') as $g)<option @selected(old('interest', $customer->interest) === $g)>{{ $g }}</option>@endforeach</select></div>

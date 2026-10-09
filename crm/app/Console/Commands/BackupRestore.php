@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Backup;
 use App\Services\BackupService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 class BackupRestore extends Command
 {
@@ -21,26 +21,19 @@ class BackupRestore extends Command
 
             return 1;
         }
-        if (! $this->option('yes') && ! $this->confirm('This REPLACES all current data. Continue?')) {
+        if (! $this->option('yes') && ! $this->confirm('This REPLACES all current data (a safety backup of the current state is taken first). Continue?')) {
             return 1;
         }
-        $gz = gzopen($path, 'rb');
-        $stmt = '';
-        $n = 0;
-        $pdo = DB::connection()->getPdo();
-        while (($line = gzgets($gz)) !== false) {
-            if ($line === "\n" || str_starts_with($line, '--')) {
-                continue;
-            }
-            $stmt .= $line;
-            if (str_ends_with(rtrim($line), ';')) {
-                $pdo->exec($stmt);
-                $stmt = '';
-                $n++;
-            }
+
+        $backup = Backup::firstWhere('filename', basename($path));
+        if (! $backup) {
+            $this->error('This file is not registered in the backups table (restore must go through a tracked Backup row).');
+
+            return 1;
         }
-        gzclose($gz);
-        $this->info("Restored {$n} statements.");
+
+        BackupService::restore($backup);
+        $this->info('Restore complete. A pre-restore safety backup of the previous state was created.');
 
         return 0;
     }

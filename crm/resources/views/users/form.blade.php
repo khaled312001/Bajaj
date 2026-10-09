@@ -36,6 +36,25 @@
             ✗ لا تصدير ولا استيراد · ✗ لا حذف · ✗ لا تقارير · ✗ لا إدارة موظفين أو إعدادات · ✗ الرقم القومي مخفي</div>
         </div>
 
+        @if($editing && !$user->isAdmin())
+        <div class="card card-pad mt" style="border-color:var(--amber)">
+            <label class="check"><input type="checkbox" name="custom_perms" value="1" @checked(old('custom_perms', $user->permissions_override !== null))> <b><i class="fa-solid fa-user-shield"></i> صلاحيات مخصصة لهذا الموظف</b></label>
+            <div class="hint" style="margin:4px 0 10px">عند التفعيل تُطبَّق الصلاحيات المحدّدة هنا على هذا الموظف فقط، بدلاً من دور الصلاحيات المختار أعلاه.</div>
+            @php($effective = \App\Support\Permissions::effectiveFor($user))
+            <div class="table-wrap"><table class="tbl perm-tbl">
+                <thead><tr><th>الصفحة / الوحدة</th>@foreach(\App\Support\Permissions::ACTIONS as $a => $al)<th class="n">{{ $al }}</th>@endforeach</tr></thead>
+                <tbody>
+                @foreach(\App\Support\Permissions::MODULES as $key => [$label, $icon, $applicable])
+                    <tr><td><i class="fa-solid {{ $icon }}" style="color:var(--blue-600);width:20px"></i> {{ $label }}</td>
+                    @foreach(\App\Support\Permissions::ACTIONS as $a => $al)
+                        <td class="n">@if(in_array($a, $applicable, true))<input type="checkbox" name="perms[{{ $key }}][{{ $a }}]" value="1" @checked(in_array($a, $effective[$key] ?? [], true))>@else<span class="muted">—</span>@endif</td>
+                    @endforeach</tr>
+                @endforeach
+                </tbody>
+            </table></div>
+        </div>
+        @endif
+
         <div class="form-actions"><a class="btn btn-ghost" href="{{ route('users.index') }}">إلغاء</a><button class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> حفظ</button></div>
     </div>
 </form>

@@ -11,6 +11,7 @@ use App\Models\Import;
 use App\Models\Payment;
 use App\Services\ImportService;
 use App\Support\Activity;
+use App\Support\ResourceGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -120,6 +121,11 @@ class DataController extends Controller
 
     public function exportCustomers(Request $request)
     {
+        try {
+            ResourceGuard::ensureHeadroom('تصدير العملاء');
+        } catch (\RuntimeException $e) {
+            return back()->with('warning', $e->getMessage());
+        }
         $q = app(CustomerController::class)->query($request)->with(['deals']);
         $rows = (function () use ($q) {
             foreach ($q->lazyById(500, 'customers.id', 'id') as $c) {
@@ -155,6 +161,11 @@ class DataController extends Controller
 
     public function exportFollowups(Request $request)
     {
+        try {
+            ResourceGuard::ensureHeadroom('تصدير المتابعات');
+        } catch (\RuntimeException $e) {
+            return back()->with('warning', $e->getMessage());
+        }
         $q = Followup::with(['customer:id,code,name', 'assignee:id,username'])->where('status', 'pending')->orderBy('due_date');
         $rows = $q->get()->map(fn ($f) => [
             'customer' => $f->customer?->code, 'reason' => $f->reason, 'due_date' => $f->due_date->toDateString(),
@@ -168,6 +179,11 @@ class DataController extends Controller
 
     public function exportPayments(Request $request)
     {
+        try {
+            ResourceGuard::ensureHeadroom('تصدير الدفعات');
+        } catch (\RuntimeException $e) {
+            return back()->with('warning', $e->getMessage());
+        }
         $rows = Payment::with(['deal.customer:id,code'])->orderBy('paid_on')->get()->map(fn ($p) => [
             'customer' => $p->deal?->customer?->code, 'chassis' => $p->deal?->chassis, 'amount' => $p->amount,
             'paid_on' => $p->paid_on->toDateString(), 'method' => $p->method, 'note' => $p->note,

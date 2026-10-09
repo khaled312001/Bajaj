@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\Followup;
 use App\Models\User;
 use App\Support\Activity;
+use App\Support\Permissions;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -72,9 +73,10 @@ class UserController extends Controller
         if (($data['role'] ?? $user->role) === User::ROLE_ADMIN) {
             $data['role_profile_id'] = null;
         }
-        \App\Support\Permissions::flush();
+        $data['permissions_override'] = $request->boolean('custom_perms') ? $this->parsePerms($request) : null;
+        Permissions::flush();
         if ($user->id === $request->user()->id) {
-            unset($data['role'], $data['is_active']);
+            unset($data['role'], $data['is_active'], $data['permissions_override']);
         }
         $user->fill($data);
         if ($request->boolean('unlock')) {
@@ -100,6 +102,23 @@ class UserController extends Controller
         Activity::log('user.delete', $user, 'حذف الموظف ' . $user->name . ' ونقل عملائه إلى ' . $request->user()->name);
 
         return redirect()->route('users.index')->with('success', 'تم حذف الموظف ونقل عملائه ومتابعاته إليك.');
+    }
+
+    /** Build a {module: [action,...]} map from the perms[module][action] checkboxes, same shape as RoleProfile::permissions. */
+    private function parsePerms(Request $request): array
+    {
+        $perms = [];
+        foreach (Permissions::MODULES as $key => [, , $applicable]) {
+            $given = array_intersect($applicable, array_keys($request->input("perms.$key", [])));
+            if ($given && in_array('view', $applicable, true) && ! in_array('view', $given, true)) {
+                $given[] = 'view';
+            }
+            if ($given) {
+                $perms[$key] = array_values($given);
+            }
+        }
+
+        return $perms;
     }
 
     private function validated(Request $request, ?User $user = null): array

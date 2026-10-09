@@ -18,6 +18,7 @@ class User extends Authenticatable
 
     protected $fillable = [
         'name', 'username', 'email', 'phone', 'password', 'role', 'role_profile_id', 'is_active', 'must_change_password',
+        'permissions_override',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -30,6 +31,7 @@ class User extends Authenticatable
             'must_change_password' => 'boolean',
             'last_login_at' => 'datetime',
             'locked_until' => 'datetime',
+            'permissions_override' => 'array',
         ];
     }
 

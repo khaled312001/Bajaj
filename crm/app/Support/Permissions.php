@@ -77,11 +77,17 @@ class Permissions
         if (in_array($module, self::ADMIN_ONLY, true) || ! isset(self::MODULES[$module])) {
             return false;
         }
-        $perms = self::profileFor($user)?->permissions;
+        $perms = $user->permissions_override ?? self::profileFor($user)?->permissions;
         if ($perms === null) {
             $perms = self::defaultProfiles()['خدمة عملاء']['perms'];
         }
 
         return in_array($action, $perms[$module] ?? [], true);
+    }
+
+    /** The permission set actually in effect for a user: their personal override, or their role profile's. */
+    public static function effectiveFor(User $user): array
+    {
+        return $user->permissions_override ?? self::profileFor($user)?->permissions ?? self::defaultProfiles()['خدمة عملاء']['perms'];
     }
 }

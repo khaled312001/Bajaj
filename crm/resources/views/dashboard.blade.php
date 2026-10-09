@@ -5,6 +5,7 @@
 
 @section('content')
 @php($isAdmin = auth()->user()->isAdmin())
+@if($dailyNotice)<div data-toast="{{ $dailyNotice }}"></div>@endif
 
 <div class="card mb dash-hero"><div class="card-body row" style="gap:18px">
     <div class="dash-logo"><img src="{{ asset('img/logo.jpg') }}" alt="Bajaj Qena"></div>

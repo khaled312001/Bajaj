@@ -30,7 +30,8 @@ class ActivityLog extends Model
         'followup.update' => 'تعديل متابعة', 'followup.delete' => 'حذف متابعة', 'export' => 'تصدير بيانات',
         'import' => 'استيراد بيانات', 'user.create' => 'إضافة موظف', 'user.update' => 'تعديل موظف',
         'user.delete' => 'حذف موظف', 'settings' => 'تعديل الإعدادات', 'security.alert' => 'تنبيه أمني',
-        'password.change' => 'تغيير كلمة المرور',
+        'password.change' => 'تغيير كلمة المرور', 'lead.assign' => 'تعيين ليدز',
+        'reassign.request' => 'طلب نقل عميل', 'reassign.approve' => 'الموافقة على نقل عميل', 'reassign.reject' => 'رفض نقل عميل',
     ];
 
     public function getLabelAttribute(): string

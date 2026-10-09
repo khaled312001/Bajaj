@@ -47,6 +47,20 @@ class BackupController extends Controller
         return response()->download($backup->path(), $backup->filename);
     }
 
+    public function restore(Request $request, Backup $backup)
+    {
+        abort_unless($backup->status === 'ok' && is_file($backup->path()), 404);
+        $request->validate(['confirm' => ['required', 'in:استرجاع']]);
+
+        try {
+            BackupService::restore($backup, $request->user()->id);
+        } catch (\Throwable $e) {
+            return back()->with('warning', 'فشل الاسترجاع: ' . $e->getMessage());
+        }
+
+        return back()->with('success', 'تم استرجاع البيانات من نسخة ' . $backup->created_at->format('Y/m/d H:i') . '. تم أخذ نسخة احتياطية من الحالة السابقة قبل الاسترجاع.');
+    }
+
     public function destroy(Backup $backup)
     {
         @unlink($backup->path());

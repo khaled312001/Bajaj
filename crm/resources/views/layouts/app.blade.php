@@ -16,10 +16,15 @@
 @php
     $me = auth()->user();
     $isAdmin = $me->isAdmin();
-    $badge = ['fu' => 0, 'alerts' => 0];
+    $badge = ['fu' => 0, 'alerts' => 0, 'leads' => 0, 'reassign' => 0, 'chat' => 0];
     try {
         $badge['fu'] = \App\Models\Followup::visibleTo($me)->pending()->whereDate('due_date', '<=', today())->count();
-        if ($isAdmin) { $badge['alerts'] = \App\Models\ActivityLog::where('action', 'security.alert')->where('created_at', '>=', now()->subDay())->count(); }
+        $badge['chat'] = \App\Models\ChatMessage::whereHas('conversation', fn ($q) => $q->forUser($me))->whereNull('read_at')->where('sender_id', '!=', $me->id)->count();
+        if ($isAdmin) {
+            $badge['alerts'] = \App\Models\ActivityLog::where('action', 'security.alert')->where('created_at', '>=', now()->subDay())->count();
+            $badge['leads'] = \App\Models\Lead::where('status', 'new')->count();
+            $badge['reassign'] = \App\Models\ReassignmentRequest::where('status', 'pending')->count();
+        }
     } catch (\Throwable $e) {}
     $wm = rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" width="360" height="200"><text x="20" y="110" transform="rotate(-24 180 100)" font-family="Arial" font-size="15" font-weight="700" fill="#0b1b3a">'.e($me->name).' · '.e($me->username).' · '.now()->format('Y/m/d H:i').'</text></svg>');
 @endphp
@@ -39,6 +44,8 @@
             @if($me->allows('customers'))<a href="{{ route('customers.index') }}" class="nav-link {{ request()->routeIs('customers.*') ? 'active' : '' }}"><i class="fa-solid fa-users"></i> العملاء</a>@endif
             @if($me->allows('followups'))<a href="{{ route('followups.index') }}" class="nav-link {{ request()->routeIs('followups.*') ? 'active' : '' }}"><i class="fa-solid fa-calendar-check"></i> المتابعات
                 @if($badge['fu'])<span class="nav-badge">{{ $badge['fu'] }}</span>@endif</a>@endif
+            <a href="{{ route('chat.index') }}" class="nav-link {{ request()->routeIs('chat.*') ? 'active' : '' }}"><i class="fa-solid fa-comments"></i> المحادثات
+                @if($badge['chat'])<span class="nav-badge">{{ $badge['chat'] }}</span>@endif</a>
             @if($me->allows('calculator'))<a href="{{ route('calculator') }}" class="nav-link {{ request()->routeIs('calculator') ? 'active' : '' }}"><i class="fa-solid fa-calculator"></i> حاسبة الأقساط</a>@endif
             @if($me->allows('vehicles'))<a href="{{ route('vehicles.index') }}" class="nav-link {{ request()->routeIs('vehicles.*') ? 'active' : '' }}"><i class="fa-solid fa-warehouse"></i> المخزن والمركبات</a>@endif
             @if($me->allows('documents'))<a href="{{ route('documents.index') }}" class="nav-link {{ request()->routeIs('documents.*') ? 'active' : '' }}"><i class="fa-solid fa-file-pdf"></i> المستندات والطباعة</a>@endif
@@ -53,6 +60,10 @@
             @if($isAdmin)
                 <div class="nav-label">الإدارة</div>
 
+                <a href="{{ route('leads.index') }}" class="nav-link {{ request()->routeIs('leads.*') ? 'active' : '' }}"><i class="fa-solid fa-inbox"></i> الليدز
+                    @if($badge['leads'])<span class="nav-badge">{{ $badge['leads'] }}</span>@endif</a>
+                <a href="{{ route('reassignments.index') }}" class="nav-link {{ request()->routeIs('reassignments.*') ? 'active' : '' }}"><i class="fa-solid fa-arrows-rotate"></i> طلبات نقل العملاء
+                    @if($badge['reassign'])<span class="nav-badge amber">{{ $badge['reassign'] }}</span>@endif</a>
                 <a href="{{ route('data.index') }}" class="nav-link {{ request()->routeIs('data.*') ? 'active' : '' }}"><i class="fa-solid fa-file-excel"></i> استيراد وتصدير Excel</a>
 
                 <a href="{{ route('roles.index') }}" class="nav-link {{ request()->routeIs('roles.*') ? 'active' : '' }}"><i class="fa-solid fa-user-lock"></i> الأدوار والصلاحيات</a>
@@ -82,6 +93,7 @@
                 <i class="fa-solid fa-magnifying-glass"></i>
                 <input type="text" name="q" placeholder="بحث سريع: اسم / هاتف / كود" autocomplete="off">
             </form>
+            <a class="top-icon" href="{{ route('chat.index') }}" title="المحادثات"><i class="fa-regular fa-comment-dots"></i>@if($badge['chat'])<span class="dot">{{ $badge['chat'] }}</span>@endif</a>
             <a class="top-icon" href="{{ route('followups.index') }}" title="المتابعات المستحقة"><i class="fa-regular fa-bell"></i>@if($badge['fu'])<span class="dot">{{ $badge['fu'] }}</span>@endif</a>
         </header>
 
@@ -97,6 +109,7 @@
 </div>
 
 <div id="toasts" class="toasts"></div>
+<script>window.EGYPT_GEO = @json(\App\Support\EgyptGeo::DATA);</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="{{ asset('js/app.js') }}?v={{ filemtime(public_path('js/app.js')) }}"></script>
 @stack('scripts')

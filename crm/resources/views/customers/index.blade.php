@@ -21,7 +21,7 @@
         </div>
         <div class="filter-bar">
             <select class="input" name="status"><option value="">كل الحالات</option>@foreach(\App\Models\Customer::STATUSES as $s)<option @selected(($f['status'] ?? '') === $s)>{{ $s }}</option>@endforeach</select>
-            <select class="input" name="governorate"><option value="">كل المحافظات</option>@foreach(\App\Models\Lookup::list('governorate') as $s)<option @selected(($f['governorate'] ?? '') === $s)>{{ $s }}</option>@endforeach</select>
+            <select class="input" name="governorate"><option value="">كل المحافظات</option>@foreach(\App\Support\EgyptGeo::all() as $s)<option @selected(($f['governorate'] ?? '') === $s)>{{ $s }}</option>@endforeach</select>
             <select class="input" name="channel"><option value="">كل القنوات</option>@foreach(\App\Models\Lookup::list('channel') as $s)<option @selected(($f['channel'] ?? '') === $s)>{{ $s }}</option>@endforeach</select>
             <select class="input" name="seriousness"><option value="">كل درجات الجدية</option>@foreach(\App\Models\Lookup::list('seriousness') as $s)<option @selected(($f['seriousness'] ?? '') === $s)>{{ $s }}</option>@endforeach</select>
             <select class="input" name="branch"><option value="">كل الفروع</option>@foreach(\App\Models\Lookup::list('branch') as $s)<option @selected(($f['branch'] ?? '') === $s)>{{ $s }}</option>@endforeach</select>
