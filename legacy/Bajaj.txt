@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1e40af">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="AUTO CRM">
+<title>AUTO CRM - نظام إدارة مبيعات وتقسيط السيارات</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: { colors: { 'navy': { DEFAULT: '#1e3a8a', dark: '#1e40af', light: '#3b82f6' }, 'sky': { DEFAULT: '#0ea5e9', light: '#7dd3fc' }, 'page': '#eef2f7' }, fontFamily: { cairo: ['Cairo', 'sans-serif'] } } } }
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231e40af'/%3E%3Cpath d='M25 65h50l-5-15H30L25 65zm5-8a3 3 0 100-6 3 3 0 000 6zm40 0a3 3 0 100-6 3 3 0 000 6z' fill='white'/%3E%3C/svg%3E">
+<style>
+* { font-family: 'Cairo', sans-serif; -webkit-tap-highlight-color: transparent; }
+html, body { overscroll-behavior: contain; }
+body { background: #eef2f7; color: #0f172a; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+.panel { background: #fff; border: 1px solid #dbe3ec; border-radius: 8px; box-shadow: 0 1px 3px rgba(30,58,138,0.06); }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+.active-nav { background: linear-gradient(90deg,#1e40af 0%,#1e3a8a 100%) !important; color: #fff !important; border-right: 4px solid #3b82f6 !important; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+.btn-primary { background: linear-gradient(135deg,#1e40af 0%,#1e3a8a 100%); color: #fff; font-weight: 800; }
+.btn-secondary { background: #fff; color: #1e40af; border: 1px solid #93b4e0; font-weight: 800; }
+.btn-danger { background: #dc2626; color: #fff; font-weight: 800; }
+.badge { display: inline-block; padding: 3px 10px; font-size: 11px; font-weight: 800; border-radius: 4px; }
+.badge-green { background: #dcfce7; color: #15803d; } .badge-yellow { background: #fef3c7; color: #a16207; }
+.badge-blue { background: #dbeafe; color: #1e40af; } .badge-red { background: #fee2e2; color: #b91c1c; }
+.badge-gray { background: #e5e7eb; color: #4b5563; }
+.toast-anim { animation: slideIn 0.35s; }
+@keyframes slideIn { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.modal-backdrop { backdrop-filter: blur(4px); background: rgba(15,23,42,0.5); }
+.modal-anim { animation: modalPop 0.25s ease; }
+@keyframes modalPop { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.cloud-status { position: fixed; top: 70px; left: 12px; z-index: 90; padding: 5px 10px; border-radius: 99px; font-size: 10px; font-weight: 900; display: flex; align-items: center; gap: 5px; }
+.cloud-online { background: #10b981; color: #fff; } .cloud-offline { background: #ef4444; color: #fff; } .cloud-syncing { background: #f59e0b; color: #fff; }
+.filter-collapsed { display: none; }
+.loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px; }
+.role-tag { display:inline-block; padding:2px 8px; border-radius: 99px; font-size: 10px; font-weight: 900; }
+.role-manager { background: linear-gradient(135deg,#7c3aed,#6d28d9); color: #fff; }
+.role-employee { background: linear-gradient(135deg,#0891b2,#0e7490); color: #fff; }
+.timeline-item { position: relative; padding-right: 32px; }
+.timeline-item::before { content: ''; position: absolute; right: 8px; top: 24px; bottom: -14px; width: 2px; background: #cbd5e1; }
+.timeline-item:last-child::before { display: none; }
+.timeline-dot { position: absolute; right: 0; top: 5px; width: 16px; height: 16px; border-radius: 50%; background: #3b82f6; border: 3px solid #dbeafe; }
+.drop-overlay { position: fixed; inset: 0; z-index: 9998; background: rgba(30,58,138,0.9); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; padding: 20px; }
+.drop-overlay.active { display: flex; }
+.drop-zone { border: 4px dashed #7dd3fc; border-radius: 24px; padding: 50px 40px; text-align: center; background: rgba(255,255,255,0.1); max-width: 500px; }
+.drop-zone-icon { width: 80px; height: 80px; margin: 0 auto 20px; border-radius: 50%; background: linear-gradient(135deg,#3b82f6,#0ea5e9); display: flex; align-items: center; justify-content: center; }
+.drop-zone-icon i { font-size: 40px; color: #fff; }
+.drop-zone-title { font-size: 24px; font-weight: 900; color: #fff; margin-bottom: 10px; }
+.drop-zone-subtitle { font-size: 13px; color: #bae6fd; font-weight: 700; }
+#splashScreen { position: fixed; inset: 0; z-index: 10000; background: linear-gradient(135deg,#1e40af,#1e3a8a); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
+#splashScreen .logo { width: 100px; height: 100px; border-radius: 24px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; }
+#splashScreen .logo i { font-size: 50px; color: #fff; }
+#splashScreen h1 { color: #fff; font-size: 32px; font-weight: 900; letter-spacing: 2px; }
+#splashScreen h1 span { color: #7dd3fc; }
+#splashScreen p { color: #bae6fd; font-size: 12px; font-weight: 700; }
+.splash-hidden { opacity: 0; pointer-events: none; transition: opacity 0.5s; }
+</style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+<!-- SPLASH -->
+<div id="splashScreen">
+    <div class="logo"><i class="fa-solid fa-car-side"></i></div>
+    <h1>AUTO <span>CRM</span></h1>
+    <p>نظام إدارة مبيعات وتقسيط السيارات</p>
+</div>
+
+<div id="toastContainer" class="fixed top-5 left-5 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+<div id="cloudStatus" class="cloud-status cloud-syncing hidden"><i class="fa-solid fa-cloud"></i> <span>جاري الاتصال...</span></div>
+
+<input type="file" id="importLocalFile" accept=".xlsx,.xls,.csv" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;z-index:-1;" onchange="handleLocalFileImport(event)">
+
+<div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-navy-dark to-sky flex items-center justify-center animate-pulse">
+        <i class="fa-solid fa-car-side text-white text-4xl"></i>
+    </div>
+    <div class="text-navy-dark font-black text-lg">جاري التحميل...</div>
+</div>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="fixed inset-0 z-50 bg-gradient-to-br from-blue-50 via-white to-blue-100 hidden items-center justify-center p-4">
+    <div class="bg-white border border-blue-200 w-full max-w-md shadow-2xl overflow-hidden rounded-xl">
+        <div class="flex">
+            <button type="button" id="tabAdminLogin" onclick="setLoginType('admin')" class="flex-1 py-4 text-sm font-black bg-navy-dark text-white">بوابة الإدارة</button>
+            <button type="button" id="tabCustomerLogin" onclick="setLoginType('customer')" class="flex-1 py-4 text-sm font-black bg-gray-100 text-gray-500">بوابة العملاء</button>
+        </div>
+        <div class="p-8">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-navy-dark to-navy flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-car-side text-white text-3xl"></i></div>
+                <h1 class="font-black text-2xl text-navy-dark mb-1">AUTO <span class="text-sky">CRM</span></h1>
+                <p id="loginSubtitle" class="text-[11px] text-gray-500 tracking-widest font-bold">تسجيل دخول الموظفين</p>
+            </div>
+            <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-black text-gray-500 mb-2">اسم المستخدم</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-user absolute right-4 top-3.5 text-gray-400"></i>
+                        <input type="text" id="loginUser" required class="w-full pl-4 pr-11 py-3 bg-page border border-gray-300 text-sm rounded" placeholder="اسم المستخدم">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-black text-gray-500 mb-2">كلمة المرور</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute right-4 top-3.5 text-gray-400"></i>
+                        <input type="password" id="loginPass" required class="w-full pl-4 pr-11 py-3 bg-page border border-gray-300 text-sm rounded" placeholder="***">
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary w-full py-3 text-sm rounded">دخول</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- HEADER -->
+<header id="mainHeader" class="sticky top-0 z-40 bg-white border-b border-gray-200 px-4 py-3 items-center justify-between shadow-sm hidden">
+    <div class="flex items-center gap-3">
+        <button onclick="toggleSidebar()" class="lg:hidden text-gray-500 p-2"><i class="fa-solid fa-bars text-xl"></i></button>
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-navy-dark to-navy flex items-center justify-center"><i class="fa-solid fa-car-side text-white text-xl"></i></div>
+        <div><h1 class="font-black text-lg text-navy-dark">AUTO <span class="text-sky">CRM</span></h1><p class="text-[9px] text-gray-500 tracking-widest font-bold">SUPABASE</p></div>
+    </div>
+    <div class="flex items-center gap-3">
+        <button onclick="switchTab('tasks')" class="relative p-2 text-gray-500"><i class="fa-solid fa-bell text-lg"></i>
+            <span id="pendingTasksBadge" class="absolute -top-1 -left-1 bg-red-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center">0</span>
+        </button>
+        <div id="headerUserInitials" class="w-10 h-10 rounded-lg bg-gradient-to-br from-navy-dark to-sky flex items-center justify-center font-black text-white text-sm">-</div>
+        <button onclick="handleLogout()" class="text-gray-400 p-2"><i class="fa-solid fa-right-from-bracket text-lg"></i></button>
+    </div>
+</header>
+
+<!-- MAIN LAYOUT -->
+<div id="mainLayout" class="flex-1 overflow-hidden relative hidden">
+    <aside id="sidebar" class="w-64 bg-white border-l border-gray-200 flex flex-col justify-between shrink-0 transition-all duration-300 absolute lg:relative z-30 h-[calc(100vh-69px)] -right-64 lg:right-0">
+        <div class="p-4 space-y-2 overflow-y-auto">
+            <div class="text-[10px] font-black text-gray-400 px-2 uppercase tracking-widest mb-2">القائمة الرئيسية</div>
+            <button onclick="switchTab('dashboard')" class="nav-btn active-nav w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-page rounded" data-tab="dashboard"><i class="fa-solid fa-chart-line w-5 text-center"></i><span>لوحة التحكم</span></button>
+            <button onclick="switchTab('search')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-page rounded" data-tab="search"><i class="fa-solid fa-users w-5 text-center"></i><span>سجل العملاء</span></button>
+            <button onclick="openCustomerModal()" class="btn-primary w-full flex items-center justify-center gap-3 px-4 py-3 text-sm my-3 rounded"><i class="fa-solid fa-plus"></i><span>إضافة عميل جديد</span></button>
+            <button onclick="switchTab('tasks')" class="nav-btn w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-gray-600 hover:bg-page rounded" data-tab="tasks">
+                <div class="flex items-center gap-3"><i class="fa-solid fa-clipboard-list w-5 text-center"></i><span>المهام</span></div>
+                <span id="navTasksCount" class="hidden bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black">0</span>
+            </button>
+            <button onclick="switchTab('analytics')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-page rounded" data-tab="analytics"><i class="fa-solid fa-chart-pie w-5 text-center"></i><span>التقارير</span></button>
+            <div id="adminSection" class="hidden">
+                <div class="text-[10px] font-black text-gray-400 px-2 uppercase tracking-widest pt-4 mb-2">إدارة المدير</div>
+                <button onclick="switchTab('employees')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-page rounded" data-tab="employees"><i class="fa-solid fa-user-tie w-5 text-center"></i><span>إدارة الموظفين</span></button>
+                <button onclick="switchTab('activity')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-page rounded" data-tab="activity"><i class="fa-solid fa-clock-rotate-left w-5 text-center"></i><span>سجل النشاط</span></button>
+                <button onclick="switchTab('settings')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-page rounded" data-tab="settings"><i class="fa-solid fa-sliders w-5 text-center"></i><span>الإعدادات</span></button>
+                <div class="text-[10px] font-black text-gray-400 px-2 uppercase tracking-widest pt-4 mb-2">الملفات</div>
+                <button onclick="openImportFilePicker()" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-purple-700 hover:bg-purple-50 rounded"><i class="fa-solid fa-file-import w-5 text-center"></i><span>استيراد من ملف</span></button>
+            </div>
+            <div id="employeeSection" class="hidden">
+                <div class="text-[10px] font-black text-gray-400 px-2 uppercase tracking-widest pt-4 mb-2">حسابي</div>
+                <button onclick="switchTab('myactivity')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-page rounded" data-tab="myactivity"><i class="fa-solid fa-clock-rotate-left w-5 text-center"></i><span>نشاطي</span></button>
+            </div>
+        </div>
+        <div class="p-4 border-t border-gray-200 text-center"><span class="text-[10px] text-gray-400 font-black">AUTO CRM v21.0</span></div>
+    </aside>
+
+    <main class="flex-1 overflow-y-auto p-3 md:p-6 bg-page">
+        <section id="tab-dashboard" class="tab-content space-y-4">
+            <div class="panel p-4 flex flex-col md:flex-row justify-between items-center gap-4 border-t-4 border-t-navy-dark">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center"><i class="fa-solid fa-user-tie text-navy text-xl"></i></div>
+                    <div><div class="text-xs font-black text-gray-500">مرحباً</div><div id="dashWelcomeName" class="text-lg font-black text-navy-dark">-</div></div>
+                </div>
+                <button onclick="openCustomerModal()" class="btn-primary px-6 py-3 flex items-center gap-2 rounded w-full md:w-auto justify-center"><i class="fa-solid fa-plus"></i> عميل جديد</button>
+            </div>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div class="panel p-4 border-t-4 border-t-sky"><div class="text-[10px] font-black text-gray-500 mb-1">إجمالي العملاء</div><div class="text-2xl md:text-3xl font-black text-navy-dark" id="kpiTotalCustomers">0</div></div>
+                <div class="panel p-4 border-t-4 border-t-green-500"><div class="text-[10px] font-black text-gray-500 mb-1">مبيعات منفذة</div><div class="text-2xl md:text-3xl font-black text-green-700" id="kpiSalesDone">0</div></div>
+                <div class="panel p-4 border-t-4 border-t-amber-500"><div class="text-[10px] font-black text-gray-500 mb-1">إجمالي المديونية</div><div class="text-lg md:text-2xl font-black text-amber-700" id="kpiTotalDebt">0</div></div>
+                <div class="panel p-4 border-t-4 border-t-red-500 bg-gradient-to-br from-navy-dark to-navy text-white"><div class="text-[10px] font-black text-white/80 mb-1">متابعات اليوم</div><div class="text-2xl md:text-3xl font-black" id="kpiTodayTasks">0</div></div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div class="panel p-4 lg:col-span-2">
+                    <h3 class="font-black text-sm text-navy-dark mb-3"><i class="fa-solid fa-list-check text-sky ml-2"></i>مهام اليوم</h3>
+                    <div class="space-y-2" id="dashboardTasksList"></div>
+                </div>
+                <div class="panel p-4">
+                    <h3 class="font-black text-sm text-navy-dark mb-2"><i class="fa-solid fa-bolt text-sky ml-2"></i>بحث سريع</h3>
+                    <div class="space-y-2 mt-3">
+                        <input type="text" id="dashPhoneInput" placeholder="رقم / اسم / كود" onkeydown="if(event.key==='Enter'){searchCustomerFromDash();}" class="w-full px-3 py-2.5 bg-page border border-gray-300 text-sm rounded">
+                        <button onclick="searchCustomerFromDash()" class="btn-primary w-full py-2.5 text-sm rounded">بحث</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-search" class="tab-content hidden space-y-4">
+            <div class="panel p-4 border-r-4 border-r-navy-dark">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-black text-navy-dark">سجل العملاء</h2>
+                    <button onclick="deleteAllCustomers()" class="btn-danger px-3 py-2 text-xs rounded"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <input type="text" id="mainSearchPhone" placeholder="بحث..." onkeydown="if(event.key==='Enter'){executeCustomerSearch();}" class="flex-1 px-4 py-3 bg-page border border-gray-300 text-sm rounded">
+                    <button onclick="executeCustomerSearch()" class="btn-primary px-6 py-3 text-sm rounded"><i class="fa-solid fa-magnifying-glass"></i></button>
+                </div>
+                <button onclick="openCustomerModal()" class="btn-primary w-full mt-3 py-3 text-sm rounded"><i class="fa-solid fa-user-plus"></i> إضافة عميل</button>
+            </div>
+
+            <div class="panel p-4 border-r-4 border-r-sky">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-black text-sm text-navy-dark"><i class="fa-solid fa-filter text-sky ml-2"></i>فلاتر</h3>
+                    <button onclick="toggleFilters()" class="text-sky p-2"><i class="fa-solid fa-chevron-down" id="filtersIcon"></i></button>
+                </div>
+                <div id="filtersPanel" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 filter-collapsed">
+                    <select id="filterGov" class="px-3 py-2 bg-page border border-gray-300 text-xs rounded"><option value="">المحافظة</option></select>
+                    <input type="text" id="filterDistrict" placeholder="المركز" class="px-3 py-2 bg-page border border-gray-300 text-xs rounded">
+                    <select id="filterStatus" class="px-3 py-2 bg-page border border-gray-300 text-xs rounded"><option value="">الحالة</option><option value="مفتوحة">مفتوحة</option><option value="جاري التقسيط">جاري</option><option value="منفذة">منفذة</option><option value="مفقودة">مفقودة</option></select>
+                    <select id="filterPayMethod" class="px-3 py-2 bg-page border border-gray-300 text-xs rounded"><option value="">الدفع</option><option value="كاش">كاش</option><option value="تقسيط">تقسيط</option></select>
+                    <select id="filterVehicle" class="px-3 py-2 bg-page border border-gray-300 text-xs rounded"><option value="">المركبة</option></select>
+                    <select id="filterChannel" class="px-3 py-2 bg-page border border-gray-300 text-xs rounded"><option value="">القناة</option></select>
+                    <select id="filterFinance" class="px-3 py-2 bg-page border border-gray-300 text-xs rounded"><option value="">الجهة</option></select>
+                    <input type="date" id="filterDateFrom" class="px-3 py-2 bg-page border border-gray-300 text-xs rounded">
+                    <input type="date" id="filterDateTo" class="px-3 py-2 bg-page border border-gray-300 text-xs rounded">
+                </div>
+                <div class="flex gap-2 mt-3">
+                    <button onclick="applyFilters()" class="btn-primary px-4 py-2 text-xs rounded flex-1">تطبيق</button>
+                    <button onclick="clearFilters()" class="btn-secondary px-4 py-2 text-xs rounded">مسح</button>
+                </div>
+                <div id="filterResultsInfo" class="mt-2 text-xs font-black text-sky hidden"></div>
+            </div>
+
+            <div id="searchResultsArea"></div>
+            <div id="loadMoreWrap" class="hidden text-center py-3">
+                <button onclick="loadMoreCustomers()" class="btn-secondary px-6 py-2.5 text-sm rounded"><i class="fa-solid fa-chevron-down ml-1"></i> المزيد</button>
+            </div>
+        </section>
+
+        <section id="tab-tasks" class="tab-content hidden space-y-4">
+            <h2 class="text-lg font-black text-navy-dark border-b border-gray-200 pb-2">المهام</h2>
+            <div class="panel p-4"><div class="space-y-2" id="fullTasksContainer"></div></div>
+        </section>
+
+        <section id="tab-analytics" class="tab-content hidden space-y-4">
+            <div class="flex justify-between items-center border-b border-gray-200 pb-2">
+                <h2 class="text-lg font-black text-navy-dark">التقارير</h2>
+                <button onclick="initCharts()" class="btn-primary px-3 py-2 text-xs rounded">تحديث</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="panel p-4 h-72 flex flex-col"><h3 class="font-black text-xs mb-2 text-gray-500">حالة المبيعات</h3><div class="flex-1 relative"><canvas id="chartStatus"></canvas></div></div>
+                <div class="panel p-4 h-72 flex flex-col"><h3 class="font-black text-xs mb-2 text-gray-500">التوزيع الجغرافي</h3><div class="flex-1 relative"><canvas id="chartGov"></canvas></div></div>
+                <div class="panel p-4 h-72 flex flex-col md:col-span-2"><h3 class="font-black text-xs mb-2 text-gray-500">المركبات الأكثر طلباً</h3><div class="flex-1 relative"><canvas id="chartVehicles"></canvas></div></div>
+            </div>
+        </section>
+
+        <section id="tab-employees" class="tab-content hidden space-y-4">
+            <div class="flex justify-between items-center border-b border-gray-200 pb-2">
+                <h2 class="text-lg font-black text-navy-dark">الموظفين</h2>
+                <button onclick="openEmployeeModal()" class="btn-primary px-4 py-2 text-xs rounded"><i class="fa-solid fa-plus"></i> موظف</button>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+                <div class="panel p-3 border-t-4 border-t-navy"><div class="text-[10px] font-black text-gray-500">إجمالي</div><div class="text-2xl font-black text-navy-dark" id="kpiTotalEmployees">0</div></div>
+                <div class="panel p-3 border-t-4 border-t-green-500"><div class="text-[10px] font-black text-gray-500">نشط اليوم</div><div class="text-2xl font-black text-green-700" id="kpiActiveToday">0</div></div>
+                <div class="panel p-3 border-t-4 border-t-sky"><div class="text-[10px] font-black text-gray-500">عمليات</div><div class="text-2xl font-black text-sky" id="kpiTodayActions">0</div></div>
+            </div>
+            <div class="panel p-4"><div id="employeesListContainer" class="space-y-2"></div></div>
+        </section>
+
+        <section id="tab-activity" class="tab-content hidden space-y-4">
+            <h2 class="text-lg font-black text-navy-dark border-b border-gray-200 pb-2">سجل النشاط</h2>
+            <div class="flex gap-2">
+                <select id="activityFilterUser" onchange="renderActivityLog()" class="flex-1 px-2 py-2 bg-page border border-gray-300 text-xs rounded"><option value="">كل الموظفين</option></select>
+                <select id="activityFilterType" onchange="renderActivityLog()" class="flex-1 px-2 py-2 bg-page border border-gray-300 text-xs rounded">
+                    <option value="">كل العمليات</option>
+                    <option value="login">دخول</option><option value="add_customer">إضافة عميل</option>
+                    <option value="edit_customer">تعديل</option><option value="delete_customer">حذف</option>
+                    <option value="add_followup">متابعة</option>
+                </select>
+            </div>
+            <div class="panel p-4 max-h-[70vh] overflow-y-auto" id="activityLogContainer"></div>
+        </section>
+
+        <section id="tab-myactivity" class="tab-content hidden space-y-4">
+            <h2 class="text-lg font-black text-navy-dark border-b border-gray-200 pb-2">نشاطي</h2>
+            <div class="grid grid-cols-3 gap-3">
+                <div class="panel p-3 border-t-4 border-t-navy"><div class="text-[10px] font-black text-gray-500">عمليات اليوم</div><div class="text-2xl font-black text-navy-dark" id="myTodayCount">0</div></div>
+                <div class="panel p-3 border-t-4 border-t-sky"><div class="text-[10px] font-black text-gray-500">عملاء</div><div class="text-2xl font-black text-sky" id="myCustomersCount">0</div></div>
+                <div class="panel p-3 border-t-4 border-t-green-500"><div class="text-[10px] font-black text-gray-500">متابعات</div><div class="text-2xl font-black text-green-700" id="myFollowupsCount">0</div></div>
+            </div>
+            <div class="panel p-4 max-h-[60vh] overflow-y-auto" id="myActivityContainer"></div>
+        </section>
+
+        <section id="tab-settings" class="tab-content hidden space-y-4">
+            <h2 class="text-lg font-black text-navy-dark border-b border-gray-200 pb-2">الإعدادات</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div class="panel p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-sm">المركبات</h3><button onclick="addSettingItem('vehicles')" class="text-sky text-xs font-black">+ إضافة</button></div><ul id="settingsVehiclesList" class="space-y-1 text-xs"></ul></div>
+                <div class="panel p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-sm">القنوات</h3><button onclick="addSettingItem('channels')" class="text-sky text-xs font-black">+ إضافة</button></div><ul id="settingsChannelsList" class="space-y-1 text-xs"></ul></div>
+                <div class="panel p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-sm">جهات التقسيط</h3><button onclick="addSettingItem('financeEntities')" class="text-sky text-xs font-black">+ إضافة</button></div><ul id="settingsFinanceList" class="space-y-1 text-xs"></ul></div>
+                <div class="panel p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-sm">أسباب المتابعة</h3><button onclick="addSettingItem('followupReasons')" class="text-sky text-xs font-black">+ إضافة</button></div><ul id="settingsFollowupList" class="space-y-1 text-xs"></ul></div>
+                <div class="panel p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-sm">مراحل التقسيط</h3><button onclick="addSettingItem('installmentStages')" class="text-sky text-xs font-black">+ إضافة</button></div><ul id="settingsStagesList" class="space-y-1 text-xs"></ul></div>
+                <div class="panel p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-sm">المحافظات</h3><button onclick="addSettingItem('governorates')" class="text-sky text-xs font-black">+ إضافة</button></div><ul id="settingsGovList" class="space-y-1 text-xs"></ul></div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- Modals -->
+<div id="employeeModal" class="fixed inset-0 z-50 modal-backdrop hidden items-center justify-center p-4">
+    <div class="bg-white w-full max-w-lg shadow-2xl rounded-xl modal-anim">
+        <div class="p-4 flex justify-between items-center bg-gradient-to-l from-navy-dark to-navy rounded-t-xl">
+            <h3 class="font-black text-white"><span id="empModalTitle">إضافة موظف</span></h3>
+            <button onclick="closeEmployeeModal()" class="text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="employeeForm" onsubmit="saveEmployeeData(event)" class="p-5 space-y-3">
+            <input type="hidden" id="empId">
+            <div><label class="block text-xs font-black text-gray-500 mb-1">الاسم *</label><input type="text" id="empName" required class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></div>
+            <div><label class="block text-xs font-black text-gray-500 mb-1">اسم المستخدم *</label><input type="text" id="empUsername" required class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></div>
+            <div><label class="block text-xs font-black text-gray-500 mb-1">كلمة المرور *</label><input type="text" id="empPassword" required class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></div>
+            <div><label class="block text-xs font-black text-gray-500 mb-1">الهاتف</label><input type="text" id="empPhone" class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></div>
+            <div><label class="block text-xs font-black text-gray-500 mb-1">الصلاحية</label><select id="empRole" class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"><option value="employee">موظف</option><option value="manager">مدير</option></select></div>
+            <button type="submit" class="btn-primary w-full py-3 text-sm rounded">حفظ</button>
+        </form>
+    </div>
+</div>
+
+<div id="customerModal" class="fixed inset-0 z-50 modal-backdrop hidden items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white w-full max-w-3xl shadow-2xl my-auto rounded-xl modal-anim">
+        <div class="p-4 flex justify-between items-center bg-gradient-to-l from-navy-dark to-navy rounded-t-xl sticky top-0 z-10">
+            <h3 class="font-black text-white"><span id="custModalTitle">عميل جديد</span></h3>
+            <button onclick="closeCustomerModal()" class="text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="customerForm" onsubmit="saveCustomerData(event)" class="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+            <input type="hidden" id="custId">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="md:col-span-2"><label class="block text-xs font-black text-gray-500 mb-1">الاسم *</label><input type="text" id="custName" required class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></div>
+                <div><label class="block text-xs font-black text-gray-500 mb-1">الرقم القومي</label><input type="text" id="custNatId" maxlength="14" class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></div>
+                <div><label class="block text-xs font-black text-gray-500 mb-1">المهنة</label><input type="text" id="custJob" class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></div>
+                <div><label class="block text-xs font-black text-gray-500 mb-1">الهاتف *</label><input type="text" id="custPhone" required class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></div>
+                <div><label class="block text-xs font-black text-gray-500 mb-1">بديل</label><input type="text" id="custAltPhone" class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></div>
+                <div><label class="block text-xs font-black text-gray-500 mb-1">واتساب</label><input type="text" id="custWhatsapp" class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></div>
+                <div><label class="block text-xs font-black text-gray-500 mb-1">المحافظة *</label><select id="custGovSelect" required class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></select></div>
+                <div><label class="block text-xs font-black text-gray-500 mb-1">المركز/الحي *</label><input type="text" id="custDistrict" required class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></div>
+                <div><label class="block text-xs font-black text-gray-500 mb-1">العنوان</label><input type="text" id="custAddress" class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></div>
+                <div class="md:col-span-2"><label class="block text-xs font-black text-sky mb-1">🔑 كود العميل *</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="custPassword" required readonly class="flex-1 px-3 py-2 bg-blue-50 border border-sky text-sm rounded font-black tracking-widest text-navy-dark">
+                        <button type="button" onclick="document.getElementById('custPassword').value=generateCustomerCode();" class="btn-secondary px-3 rounded text-xs"><i class="fa-solid fa-rotate"></i></button>
+                    </div>
+                </div>
+                <div><label class="block text-xs font-black text-gray-500 mb-1">القناة *</label><select id="custChannelSelect" required class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></select></div>
+                <div><label class="block text-xs font-black text-gray-500 mb-1">المركبة *</label><input type="text" id="custInterest" required class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></div>
+                <div><label class="block text-xs font-black text-gray-500 mb-1">حالة البيع *</label>
+                    <select id="custStatus" required class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded">
+                        <option value="مفتوحة">مفتوحة</option><option value="جاري التقسيط">جاري التقسيط</option>
+                        <option value="منفذة">منفذة</option><option value="مفقودة">مفقودة</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2"><label class="block text-xs font-black text-gray-500 mb-1">ملاحظات</label><textarea id="custNotes" rows="2" class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></textarea></div>
+            </div>
+            <div id="financeSection" class="space-y-3 border-t pt-3">
+                <h4 class="font-black text-xs text-amber-600">بيانات التقسيط</h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <select id="custPayMethod" class="px-3 py-2 bg-page border border-gray-300 text-sm rounded"><option value="كاش">كاش</option><option value="تقسيط">تقسيط</option></select>
+                    <select id="custFinanceEntity" class="px-3 py-2 bg-page border border-gray-300 text-sm rounded"></select>
+                    <input type="number" id="custTotal" value="0" oninput="calcDebt()" placeholder="الإجمالي" class="px-3 py-2 bg-page border border-gray-300 text-sm rounded font-black">
+                    <input type="number" id="custDown" value="0" oninput="calcDebt()" placeholder="المقدم" class="px-3 py-2 bg-page border border-gray-300 text-sm rounded font-black">
+                    <input type="text" id="custDebt" readonly class="px-3 py-2 bg-amber-50 border border-amber-300 text-sm rounded font-black">
+                    <input type="number" id="custMonthly" placeholder="القسط" class="px-3 py-2 bg-page border border-gray-300 text-sm rounded">
+                    <input type="date" id="custDeliveryDate" class="col-span-2 px-3 py-2 bg-page border border-gray-300 text-sm rounded">
+                </div>
+            </div>
+            <div class="flex gap-2 pt-3 border-t">
+                <button type="button" onclick="closeCustomerModal()" class="btn-secondary flex-1 py-3 text-sm rounded">إلغاء</button>
+                <button type="submit" class="btn-primary flex-1 py-3 text-sm rounded">حفظ</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="followupModal" class="fixed inset-0 z-[60] modal-backdrop hidden items-center justify-center p-4">
+    <div class="bg-white w-full max-w-lg shadow-2xl rounded-xl modal-anim">
+        <div class="p-4 flex justify-between items-center bg-gradient-to-l from-navy-dark to-navy rounded-t-xl">
+            <h3 class="font-black text-white">متابعة جديدة</h3>
+            <button onclick="closeFollowupModal()" class="text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="followupForm" onsubmit="saveFollowupData(event)" class="p-5 space-y-3">
+            <input type="hidden" id="fpCustId">
+            <input type="text" id="fpCustName" readonly class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded font-bold">
+            <div class="grid grid-cols-2 gap-2">
+                <input type="date" id="fpDate" required class="px-3 py-2 bg-page border border-gray-300 text-sm rounded">
+                <input type="time" id="fpTime" class="px-3 py-2 bg-page border border-gray-300 text-sm rounded">
+            </div>
+            <select id="fpReason" required class="w-full px-3 py-2 bg-blue-50 border border-sky text-sm rounded"></select>
+            <textarea id="fpNotes" required rows="3" placeholder="الملاحظات" class="w-full px-3 py-2 bg-page border border-gray-300 text-sm rounded"></textarea>
+            <button type="submit" class="btn-primary w-full py-3 text-sm rounded">حفظ</button>
+        </form>
+    </div>
+</div>
+
+<div id="productModal" class="fixed inset-0 z-[60] modal-backdrop hidden items-center justify-center p-4">
+    <div class="bg-white w-full max-w-2xl shadow-2xl rounded-xl modal-anim">
+        <div class="p-4 flex justify-between items-center bg-gradient-to-l from-navy-dark to-navy rounded-t-xl">
+            <h3 class="font-black text-white"><span id="prodModalTitle">منتج جديد</span></h3>
+            <button onclick="closeProductModal()" class="text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="productForm" onsubmit="saveProductData(event)" class="p-5 space-y-3 max-h-[75vh] overflow-y-auto">
+            <input type="hidden" id="prodCustId"><input type="hidden" id="prodId">
+            <div class="grid grid-cols-2 gap-3">
+                <select id="prodVehicle" required class="col-span-2 px-3 py-2 bg-page border border-gray-300 text-sm rounded"></select>
+                <select id="prodStatus" class="px-3 py-2 bg-page border border-gray-300 text-sm rounded"><option value="مفتوحة">مفتوحة</option><option value="جاري التقسيط">جاري</option><option value="منفذة">منفذة</option><option value="مفقودة">مفقودة</option></select>
+                <select id="prodPayMethod" class="px-3 py-2 bg-page border border-gray-300 text-sm rounded"><option value="كاش">كاش</option><option value="تقسيط">تقسيط</option></select>
+                <select id="prodFinance" class="px-3 py-2 bg-page border border-gray-300 text-sm rounded"></select>
+                <select id="prodStage" class="px-3 py-2 bg-page border border-gray-300 text-sm rounded"></select>
+                <input type="number" id="prodTotal" value="0" oninput="calcProdDebt()" placeholder="الإجمالي" class="px-3 py-2 bg-page border border-gray-300 text-sm rounded font-black">
+                <input type="number" id="prodDown" value="0" oninput="calcProdDebt()" placeholder="المقدم" class="px-3 py-2 bg-page border border-gray-300 text-sm rounded font-black">
+                <input type="text" id="prodDebt" readonly class="px-3 py-2 bg-amber-50 border border-amber-300 text-sm rounded font-black">
+                <input type="number" id="prodMonthly" placeholder="القسط" class="px-3 py-2 bg-page border border-gray-300 text-sm rounded">
+                <input type="date" id="prodDeliveryDate" class="col-span-2 px-3 py-2 bg-page border border-gray-300 text-sm rounded">
+                <input type="text" id="prodChassis" placeholder="الشاسيه" class="px-3 py-2 bg-page border border-gray-300 text-sm rounded">
+                <input type="text" id="prodMotor" placeholder="الموتور" class="px-3 py-2 bg-page border border-gray-300 text-sm rounded">
+                <input type="text" id="prodModel" placeholder="الموديل" class="col-span-2 px-3 py-2 bg-page border border-gray-300 text-sm rounded">
+                <textarea id="prodNotes" rows="2" placeholder="ملاحظات" class="col-span-2 px-3 py-2 bg-page border border-gray-300 text-sm rounded"></textarea>
+            </div>
+            <div class="flex gap-2 pt-3 border-t">
+                <button type="button" onclick="closeProductModal()" class="btn-secondary flex-1 py-3 text-sm rounded">إلغاء</button>
+                <button type="submit" class="btn-primary flex-1 py-3 text-sm rounded">حفظ</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="customerDetailModal" class="fixed inset-0 z-50 modal-backdrop hidden items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white w-full max-w-3xl shadow-2xl my-auto rounded-xl modal-anim">
+        <div class="p-4 flex justify-between items-center bg-gradient-to-l from-navy-dark to-navy rounded-t-xl sticky top-0">
+            <h3 class="font-black text-white"><i class="fa-solid fa-user text-sky ml-2"></i>ملف العميل</h3>
+            <button onclick="closeCustomerDetail()" class="text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-5 max-h-[75vh] overflow-y-auto" id="customerDetailContent"></div>
+    </div>
+</div>
+
+<div id="deleteAllModal" class="fixed inset-0 z-[70] modal-backdrop hidden items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md shadow-2xl rounded-xl modal-anim">
+        <div class="p-4 bg-gradient-to-l from-red-600 to-red-700 rounded-t-xl">
+            <h3 class="font-black text-white"><i class="fa-solid fa-triangle-exclamation"></i> تحذير</h3>
+        </div>
+        <div class="p-5 space-y-3">
+            <p class="font-black text-navy-dark">حذف كل العملاء؟</p>
+            <div class="flex gap-2">
+                <button onclick="confirmDeleteAll()" class="btn-danger flex-1 py-3 text-sm rounded">نعم</button>
+                <button onclick="closeDeleteAllModal()" class="btn-secondary flex-1 py-3 text-sm rounded">إلغاء</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="customerPortalScreen" class="fixed inset-0 z-40 bg-page hidden flex-col overflow-y-auto">
+    <header class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-navy-dark to-navy flex items-center justify-center"><i class="fa-solid fa-car-side text-white"></i></div>
+            <h1 class="font-black text-lg text-navy-dark">AUTO <span class="text-sky">CRM</span></h1>
+        </div>
+        <button onclick="handleLogout()" class="text-gray-500 text-sm font-black">خروج</button>
+    </header>
+    <main class="flex-1 p-4">
+        <div class="max-w-2xl mx-auto space-y-4">
+            <div class="panel p-6 border-t-4 border-t-navy-dark"><h2 class="text-2xl font-black text-navy-dark">مرحباً، <span id="cpCustName" class="text-sky"></span></h2></div>
+            <div class="grid grid-cols-3 gap-3">
+                <div class="panel p-3"><div class="text-[10px] font-black text-gray-500">المركبة</div><div id="cpVehicle" class="font-black text-navy-dark text-sm">-</div></div>
+                <div class="panel p-3"><div class="text-[10px] font-black text-gray-500">الحالة</div><div id="cpStatus" class="font-black text-navy-dark text-sm">-</div></div>
+                <div class="panel p-3"><div class="text-[10px] font-black text-gray-500">الجهة</div><div id="cpFinance" class="font-black text-navy-dark text-sm">-</div></div>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+                <div class="panel p-3 text-center"><div class="text-[10px] font-black text-gray-500">الإجمالي</div><div id="cpTotal" class="font-black text-navy-dark">-</div></div>
+                <div class="panel p-3 text-center"><div class="text-[10px] font-black text-gray-500">المقدم</div><div id="cpDown" class="font-black text-green-700">-</div></div>
+                <div class="panel p-3 text-center bg-gradient-to-br from-navy-dark to-navy text-white"><div class="text-[10px] font-black text-white/80">المديونية</div><div id="cpDebt" class="font-black">-</div></div>
+            </div>
+            <h3 class="font-black text-navy-dark">🔔 آخر متابعة</h3>
+            <div id="cpLastFollowup" class="panel p-4"></div>
+        </div>
+    </main>
+</div>
+
+<div id="dropOverlay" class="drop-overlay">
+    <div class="drop-zone">
+        <div class="drop-zone-icon"><i class="fa-solid fa-file-arrow-up"></i></div>
+        <div class="drop-zone-title">ارمي الملف هنا</div>
+        <div class="drop-zone-subtitle">Excel / CSV</div>
+    </div>
+</div>
+
+<!-- SUPABASE -->
+<script>
+const SUPABASE_URL = 'https://snmgxxelicjefbwvfiho.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_eMVHXEmHbzkD0Jen8QWCeg_KqzsREMm';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+console.log('✅ Supabase initialized');
+</script>
+
+<script>
+// ==================== DEFAULT USERS - هنا اتضاف Anwar zarad ====================
+const DEFAULT_USERS = [
+    { id: 'u1', username: 'AhmedMH', password: '200900', name: 'أحمد محمود', role: 'manager', phone: '', createdAt: Date.now() },
+    { id: 'u2', username: 'Anwar zarad', password: '123', name: 'انور ربيع', role: 'manager', phone: '', createdAt: Date.now() }
+];
+
+let usersDb = [...DEFAULT_USERS];
+let appData = {
+    customers: [], tasks: [], activityLog: [],
+    config: {
+        governorates: ['القاهرة', 'الجيزة', 'الإسكندرية', 'الشرقية', 'الدقهلية', 'الغربية', 'المنوفية', 'البحيرة', 'بني سويف', 'أسيوط', 'سوهاج'],
+        vehicles: ['هيونداي توسان', 'كيا سبورتاج', 'إم جي RX5', 'شيري تيجو', 'تويوتا كورولا', 'رينو لوجان'],
+        channels: ['فيسبوك', 'انستجرام', 'واتساب', 'مكالمة', 'زيارة المعرض', 'توصية', 'اتصال مباشر'],
+        financeEntities: ['بنك مصر', 'البنك الأهلي', 'كونتكت', 'أمان', 'درايف', 'Contact', 'Valu', 'Souhoola'],
+        followupReasons: ['استكمال أوراق', 'الرد على استفسار', 'العميل رفض', 'متردد', 'تذكير', 'تسليم أوراق', 'متابعة بعد البيع'],
+        installmentStages: ['قيد المراجعة', 'تم الموافقة', 'رد علينا', 'ملغي', 'استعلام سيئ', 'تم الصرف', 'تم التسليم']
+    }
+};
+let currentUser = null;
+let currentLoginType = 'admin';
+let currentDetailCustomerId = null;
+let lastVisibleOffset = 0;
+let hasMoreCustomers = false;
+let loadedCustomers = [];
+let allCustomersCache = [];
+let totalCustomersCount = 0;
+let allCustomersLoaded = false;
+let backgroundLoadingInProgress = false;
+let statusChartInstance, govChartInstance, vehicleChartInstance;
+
+// ==================== SPLASH ====================
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        document.getElementById('splashScreen').classList.add('splash-hidden');
+        setTimeout(() => document.getElementById('splashScreen').remove(), 500);
+        init();
+    }, 1800);
+});
+
+async function init() {
+    loadFromLocal();
+    populateDropdowns();
+    populateFilterDropdowns();
+    renderSettingsLists();
+    checkLoginState();
+    document.getElementById('cloudStatus').classList.remove('hidden');
+    try { await detectAndConnect(); } catch(e) { setCloudStatus('offline', 'وضع محلي'); }
+}
+
+// ==================== UTILITIES ====================
+function generateCustomerCode() {
+    const L = 'ABCDEFGHJKLMNPQRSTUVWXYZ', D = '0123456789';
+    let code;
+    do {
+        code = '';
+        for (let i = 0; i < 3; i++) code += L[Math.floor(Math.random() * L.length)];
+        for (let i = 0; i < 3; i++) code += D[Math.floor(Math.random() * D.length)];
+    } while (appData.customers.some(c => c.password === code));
+    return code;
+}
+
+function setCloudStatus(status, text) {
+    const el = document.getElementById('cloudStatus');
+    if (!el) return;
+    el.className = 'cloud-status cloud-' + status;
+    const ic = status === 'online' ? 'fa-cloud' : status === 'syncing' ? 'fa-cloud-arrow-up fa-spin' : 'fa-cloud-slash';
+    el.innerHTML = `<i class="fa-solid ${ic}"></i> <span>${text}</span>`;
+}
+
+function showLoading() {
+    const el = document.getElementById('loadingOverlay');
+    if (!el) return;
+    el.classList.remove('hidden');
+    clearTimeout(window.__loadingTimeout);
+    window.__loadingTimeout = setTimeout(() => el.classList.add('hidden'), 10000);
+}
+function hideLoading() {
+    clearTimeout(window.__loadingTimeout);
+    const el = document.getElementById('loadingOverlay');
+    if (el) el.classList.add('hidden');
+}
+
+function showToast(msg, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const colors = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-sky', warning: 'bg-amber-500' };
+    const icons = { success: 'fa-circle-check', error: 'fa-circle-xmark', info: 'fa-circle-info', warning: 'fa-triangle-exclamation' };
+    const toast = document.createElement('div');
+    toast.className = `${colors[type] || colors.success} text-white px-4 py-3 rounded-lg shadow-lg font-black text-xs flex items-center gap-2 toast-anim pointer-events-auto max-w-xs`;
+    toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.success}"></i> <span>${msg}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.transition = 'all 0.3s';
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-100%)';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// ==================== LOGIN (بدون Supabase - أسرع وأبسط) ====================
+function setLoginType(type) {
+    currentLoginType = type;
+    const tabA = document.getElementById('tabAdminLogin'), tabC = document.getElementById('tabCustomerLogin');
+    const inp = document.getElementById('loginUser'), sub = document.getElementById('loginSubtitle');
+    if (type === 'admin') {
+        tabA.className = 'flex-1 py-4 text-sm font-black bg-navy-dark text-white';
+        tabC.className = 'flex-1 py-4 text-sm font-black bg-gray-100 text-gray-500';
+        inp.placeholder = 'اسم المستخدم'; sub.innerText = 'تسجيل دخول الموظفين';
+    } else {
+        tabC.className = 'flex-1 py-4 text-sm font-black bg-navy-dark text-white';
+        tabA.className = 'flex-1 py-4 text-sm font-black bg-gray-100 text-gray-500';
+        inp.placeholder = '01xxxxxxxxx'; sub.innerText = 'بوابة العملاء';
+    }
+}
+
+function checkLoginState() {
+    const s = sessionStorage.getItem('autocrmUser');
+    if (s) {
+        const u = JSON.parse(s);
+        if (u.roleType === 'customer') { currentUser = u; showCustomerPortal(); }
+        else {
+            const f = usersDb.find(x => x.id === u.id);
+            if (f) { currentUser = { ...f, roleType: 'admin' }; showApp(); }
+            else showLogin();
+        }
+    } else showLogin();
+}
+
+async function handleLogin(e) {
+    e.preventDefault();
+    const u = document.getElementById('loginUser').value.trim();
+    const p = document.getElementById('loginPass').value;
+    console.log('🔐 محاولة دخول:', u);
+
+    if (currentLoginType === 'admin') {
+        // ✅ الأول: دور في Supabase
+        let user = null;
+        try {
+            const { data, error } = await sb.from('users').select('*').eq('username', u).eq('password', p).maybeSingle();
+            if (data) {
+                user = { id: data.id, username: data.username, password: data.password, name: data.name, phone: data.phone, role: data.role };
+                console.log('✅ Supabase user found:', user.name);
+            }
+        } catch(err) { console.warn('Supabase login error:', err); }
+
+        // ✅ التاني: fallback محلي (DEFAULT_USERS)
+        if (!user) {
+            user = usersDb.find(x => x.username === u && x.password === p);
+            if (user) console.log('✅ Local user found:', user.name);
+        }
+
+        if (user) {
+            currentUser = { ...user, roleType: 'admin' };
+            sessionStorage.setItem('autocrmUser', JSON.stringify(currentUser));
+            logActivity('login', `دخول: ${user.name}`);
+            showLoading();
+            try { await showApp(); } catch(err) { console.error(err); } finally { hideLoading(); }
+            showToast(`مرحباً، ${user.name}`);
+        } else {
+            console.warn('❌ User not found. Available:', usersDb.map(x => x.username));
+            showToast('بيانات خاطئة!', 'error');
+        }
+    } else {
+        const cust = appData.customers.find(c => (c.phone === u || c.altPhone === u || c.password === u) && (c.password === p));
+        if (cust) {
+            currentUser = { ...cust, roleType: 'customer' };
+            sessionStorage.setItem('autocrmUser', JSON.stringify(currentUser));
+            showCustomerPortal(); showToast(`مرحباً، ${cust.name}`);
+        } else showToast('بيانات خاطئة', 'error');
+    }
+}
+
+function handleLogout() {
+    if (currentUser && currentUser.roleType === 'admin') logActivity('logout', `خروج: ${currentUser.name}`);
+    sessionStorage.removeItem('autocrmUser');
+    currentUser = null;
+    document.getElementById('loginForm').reset();
+    switchTab('dashboard');
+    ['mainHeader','mainLayout','customerPortalScreen'].forEach(id => {
+        const el = document.getElementById(id);
+        el.classList.add('hidden'); el.classList.remove('flex');
+    });
+    showLogin();
+}
+
+function showLogin() { const el = document.getElementById('loginScreen'); el.classList.remove('hidden'); el.classList.add('flex'); }
+
+// ==================== SUPABASE DB ====================
+async function saveCustomerToDB(customer) {
+    try {
+        const customerRow = {
+            id: customer.id,
+            customer_code: customer.password || customer.customerCode || '',
+            name: customer.name || '', phone: customer.phone || '',
+            alt_phone: customer.altPhone || '', whatsapp: customer.whatsapp || '',
+            nat_id: customer.natId || '', job: customer.job || '',
+            gov: customer.gov || '', district: customer.district || '',
+            address: customer.address || '', channel: customer.channel || '',
+            interest: customer.interest || '', status: customer.status || 'مفتوحة',
+            notes: customer.notes || '',
+            created_by: customer.createdBy || (currentUser ? currentUser.id : ''),
+            created_by_name: customer.createdByName || (currentUser ? currentUser.name : ''),
+            created_at: customer.createdAt || Date.now(), updated_at: Date.now()
+        };
+        await sb.from('customers').upsert(customerRow);
+        for (const p of (customer.products || [])) {
+            if (!p || !p.id) continue;
+            await sb.from('products').upsert({
+                id: p.id, customer_id: customer.id, vehicle: p.vehicle || '',
+                pay_method: p.payMethod || 'كاش', finance_entity: p.financeEntity || '',
+                stage: p.stage || '', status: p.status || 'مفتوحة',
+                total: Number(p.total || 0), down: Number(p.down || 0),
+                monthly: Number(p.monthly || 0), debt: Number(p.debt || 0),
+                delivery_date: p.deliveryDate || '', chassis: p.chassis || '',
+                motor: p.motor || '', model: p.model || '', notes: p.notes || '',
+                created_by: p.createdBy || currentUser.id,
+                created_by_name: p.createdByName || currentUser.name,
+                created_at: p.createdAt || Date.now()
+            });
+        }
+    } catch(e) { console.warn('Save to DB failed:', e.message); }
+}
+
+async function loadCustomersPage(offset = 0, pageSize = 30) {
+    const { data, error } = await sb.from('customers').select('*').order('created_at', { ascending: false }).range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    return {
+        customers: (data || []).map(row => ({
+            id: row.id, name: row.name, phone: row.phone,
+            altPhone: row.alt_phone, whatsapp: row.whatsapp,
+            password: row.customer_code, customerCode: row.customer_code,
+            natId: row.nat_id, job: row.job, gov: row.gov,
+            district: row.district, address: row.address,
+            channel: row.channel, interest: row.interest,
+            status: row.status, notes: row.notes,
+            createdBy: row.created_by, createdByName: row.created_by_name,
+            createdAt: row.created_at, products: [], followups: [], _subLoaded: false
+        })),
+        hasMore: (data || []).length === pageSize
+    };
+}
+
+async function getCustomerFromDB(id) {
+    const cached = loadedCustomers.find(c => c.id === id);
+    if (cached && cached._subLoaded && cached.products && cached.products.length) return cached;
+    const { data: row, error } = await sb.from('customers').select('*').eq('id', id).single();
+    if (error || !row) return null;
+    const c = {
+        id: row.id, name: row.name, phone: row.phone, altPhone: row.alt_phone,
+        whatsapp: row.whatsapp, password: row.customer_code, customerCode: row.customer_code,
+        natId: row.nat_id, job: row.job, gov: row.gov, district: row.district,
+        address: row.address, channel: row.channel, interest: row.interest,
+        status: row.status, notes: row.notes, createdBy: row.created_by,
+        createdByName: row.created_by_name, createdAt: row.created_at,
+        products: [], followups: [], _subLoaded: true
+    };
+    try {
+        const [pRes, fRes] = await Promise.all([
+            sb.from('products').select('*').eq('customer_id', id),
+            sb.from('followups').select('*').eq('customer_id', id).order('created_at', { ascending: false })
+        ]);
+        c.products = (pRes.data || []).map(p => ({
+            id: p.id, vehicle: p.vehicle, payMethod: p.pay_method, financeEntity: p.finance_entity,
+            stage: p.stage, status: p.status, total: p.total, down: p.down,
+            monthly: p.monthly, debt: p.debt, deliveryDate: p.delivery_date,
+            chassis: p.chassis, motor: p.motor, model: p.model, notes: p.notes,
+            createdBy: p.created_by, createdByName: p.created_by_name, createdAt: p.created_at
+        }));
+        c.followups = (fRes.data || []).map(f => ({
+            id: f.id, date: f.date, time: f.time, reason: f.reason,
+            notes: f.notes, byName: f.by_name, byId: f.by_id, createdAt: f.created_at
+        }));
+    } catch(e) {}
+    const idx = loadedCustomers.findIndex(x => x.id === id);
+    if (idx >= 0) loadedCustomers[idx] = { ...loadedCustomers[idx], ...c };
+    return c;
+}
+
+async function detectAndConnect() {
+    setCloudStatus('syncing', 'جاري الاتصال...');
+    try {
+        const { error } = await sb.from('customers').select('id').limit(1);
+        if (error) throw error;
+        setCloudStatus('online', 'متصل بـ Supabase');
+        try {
+            const { data: users } = await sb.from('users').select('*');
+            if (users && users.length) {
+                const dbUsers = users.map(u => ({ id: u.id, username: u.username, password: u.password, name: u.name, phone: u.phone, role: u.role, createdAt: u.created_at }));
+                // ادمج مع DEFAULT_USERS (بدون تكرار)
+                const existingUsernames = new Set(dbUsers.map(u => u.username));
+                DEFAULT_USERS.forEach(du => { if (!existingUsernames.has(du.username)) dbUsers.push(du); });
+                usersDb = dbUsers;
+            }
+        } catch(e) {}
+    } catch(e) {
+        setCloudStatus('offline', 'وضع محلي');
+    }
+}
+
+function saveToLocal() {
+    try {
+        localStorage.setItem('autocrmDataV21', JSON.stringify({ tasks: appData.tasks, activityLog: appData.activityLog.slice(0, 200), config: appData.config }));
+        localStorage.setItem('autocrmUsersV21', JSON.stringify(usersDb));
+    } catch(e) {}
+}
+function loadFromLocal() {
+    try {
+        const d = localStorage.getItem('autocrmDataV21');
+        const u = localStorage.getItem('autocrmUsersV21');
+        if (d) { const p = JSON.parse(d); if (p.tasks) appData.tasks = p.tasks; if (p.config) appData.config = { ...appData.config, ...p.config }; if (p.activityLog) appData.activityLog = p.activityLog; }
+        if (u) { const p = JSON.parse(u); if (Array.isArray(p) && p.length) usersDb = p; }
+    } catch(e) {}
+}
+function saveCustomersCache() {
+    try {
+        const toSave = loadedCustomers.slice(0, 500).map(c => ({ ...c, products: [], followups: [], _subLoaded: false }));
+        localStorage.setItem('autocrmCustomersCache', JSON.stringify(toSave));
+    } catch(e) {}
+}
+
+function saveData() { saveToLocal(); }
+function saveUsers() { saveToLocal(); try { usersDb.forEach(u => sb.from('users').upsert({ id: u.id, username: u.username, password: u.password, name: u.name, phone: u.phone || '', role: u.role, created_at: u.createdAt || Date.now() })); } catch(e) {} }
+
+function logActivity(type, details, customerCode = '', customerId = '') {
+    try {
+        sb.from('activity_log').insert({
+            id: 'a' + Date.now() + Math.random().toString(36).slice(2,6),
+            type, details, customer_code: customerCode, customer_id: customerId,
+            user_id: currentUser ? currentUser.id : 'system',
+            user_name: currentUser ? currentUser.name : 'نظام',
+            user_role: currentUser ? currentUser.role : 'system',
+            created_at: Date.now()
+        });
+    } catch(e) {}
+    if (!appData.activityLog) appData.activityLog = [];
+    appData.activityLog.unshift({
+        id: 'a' + Date.now(), type, customerCode, customerId,
+        userId: currentUser ? currentUser.id : 'system',
+        userName: currentUser ? currentUser.name : 'نظام',
+        timestamp: Date.now(), details: details || ''
+    });
+    if (appData.activityLog.length > 500) appData.activityLog = appData.activityLog.slice(0, 500);
+    saveToLocal();
+}
+
+function isManager() { return currentUser && currentUser.role === 'manager'; }
+
+async function showApp() {
+    document.getElementById('loginScreen').classList.add('hidden'); document.getElementById('loginScreen').classList.remove('flex');
+    document.getElementById('customerPortalScreen').classList.add('hidden'); document.getElementById('customerPortalScreen').classList.remove('flex');
+    document.getElementById('mainHeader').classList.remove('hidden'); document.getElementById('mainHeader').classList.add('flex');
+    document.getElementById('mainLayout').classList.remove('hidden'); document.getElementById('mainLayout').classList.add('flex');
+    const initials = currentUser.name.split(' ').map(p => p[0]).slice(0, 2).join('');
+    document.getElementById('headerUserInitials').innerText = initials;
+    document.getElementById('dashWelcomeName').innerText = currentUser.name;
+    const a = document.getElementById('adminSection'), e = document.getElementById('employeeSection');
+    if (isManager()) { a.classList.remove('hidden'); e.classList.add('hidden'); }
+    else { a.classList.add('hidden'); e.classList.remove('hidden'); }
+    try { await loadCustomersInitial(); } catch(err) { console.warn(err); }
+    updateDashboard(); renderDashboardTasks(); renderFullTasks();
+}
+
+async function loadCustomersInitial() {
+    try {
+        const cached = localStorage.getItem('autocrmCustomersCache');
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length) { loadedCustomers = parsed; appData.customers = parsed; updateDashboard(); }
+        }
+    } catch(e) {}
+    getTotalCustomersCount();
+    try {
+        const page = await Promise.race([loadCustomersPage(0, 30), new Promise((_, r) => setTimeout(() => r(new Error('timeout')), 8000))]);
+        const existingIds = new Set(loadedCustomers.map(c => c.id));
+        const fresh = page.customers.filter(c => !existingIds.has(c.id));
+        loadedCustomers = [...fresh, ...loadedCustomers];
+        appData.customers = loadedCustomers;
+        lastVisibleOffset = 30;
+        hasMoreCustomers = page.hasMore;
+        saveCustomersCache();
+        updateDashboard(); renderDashboardTasks();
+        if (page.hasMore) loadAllRemainingCustomers(); else allCustomersLoaded = true;
+    } catch(e) { console.error(e); }
+}
+
+async function getTotalCustomersCount() {
+    try {
+        const { count } = await sb.from('customers').select('*', { count: 'exact', head: true });
+        totalCustomersCount = count || 0;
+        updateDashboard();
+    } catch(e) { totalCustomersCount = Math.max(totalCustomersCount, loadedCustomers.length); }
+}
+
+async function loadAllRemainingCustomers() {
+    if (backgroundLoadingInProgress) return;
+    backgroundLoadingInProgress = true;
+    try {
+        let offset = lastVisibleOffset, hasMore = hasMoreCustomers, round = 0;
+        const existingIds = new Set(loadedCustomers.map(c => c.id));
+        while (hasMore) {
+            round++;
+            const page = await loadCustomersPage(offset, 200);
+            const fresh = page.customers.filter(c => !existingIds.has(c.id));
+            fresh.forEach(c => existingIds.add(c.id));
+            loadedCustomers = loadedCustomers.concat(fresh);
+            appData.customers = loadedCustomers;
+            offset += 200; hasMore = page.hasMore;
+            updateDashboard();
+            if (round % 3 === 0) { saveCustomersCache(); await new Promise(r => setTimeout(r, 80)); }
+        }
+        lastVisibleOffset = offset; hasMoreCustomers = false; allCustomersLoaded = true;
+        saveCustomersCache(); updateDashboard();
+        showToast(`✅ تم تحميل ${loadedCustomers.length} عميل`);
+    } catch(e) {}
+    backgroundLoadingInProgress = false;
+}
+
+function showCustomerPortal() {
+    document.getElementById('loginScreen').classList.add('hidden'); document.getElementById('loginScreen').classList.remove('flex');
+    document.getElementById('mainHeader').classList.add('hidden'); document.getElementById('mainHeader').classList.remove('flex');
+    document.getElementById('mainLayout').classList.add('hidden'); document.getElementById('mainLayout').classList.remove('flex');
+    document.getElementById('customerPortalScreen').classList.remove('hidden'); document.getElementById('customerPortalScreen').classList.add('flex');
+    const c = appData.customers.find(x => x.id === currentUser.id) || currentUser;
+    const lp = (c.products && c.products.length) ? c.products[c.products.length - 1] : {};
+    const total = Number(lp.total || 0), down = Number(lp.down || 0);
+    document.getElementById('cpCustName').innerText = c.name;
+    document.getElementById('cpVehicle').innerText = lp.vehicle || c.interest || '-';
+    document.getElementById('cpStatus').innerText = lp.status || c.status || '-';
+    document.getElementById('cpFinance').innerText = lp.financeEntity || '-';
+    document.getElementById('cpTotal').innerText = total.toLocaleString() + ' ج';
+    document.getElementById('cpDown').innerText = down.toLocaleString() + ' ج';
+    document.getElementById('cpDebt').innerText = Math.max(0, total - down).toLocaleString() + ' ج';
+}
+
+function switchTab(tabId) {
+    if (!isManager() && ['settings','activity','employees'].includes(tabId)) { showToast('للمدير فقط', 'error'); tabId = 'dashboard'; }
+    document.querySelectorAll('.tab-content').forEach(el => { el.classList.add('hidden'); el.classList.remove('block'); });
+    const target = document.getElementById('tab-' + tabId);
+    if (target) { target.classList.remove('hidden'); target.classList.add('block'); }
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active-nav'));
+    const active = document.querySelector(`.nav-btn[data-tab="${tabId}"]`);
+    if (active) active.classList.add('active-nav');
+    closeSidebar();
+    if (tabId === 'dashboard') { updateDashboard(); renderDashboardTasks(); }
+    if (tabId === 'search') executeCustomerSearch();
+    if (tabId === 'tasks') renderFullTasks();
+    if (tabId === 'analytics') initCharts();
+    if (tabId === 'settings') renderSettingsLists();
+    if (tabId === 'activity') { populateActivityFilters(); renderActivityLog(); }
+    if (tabId === 'employees') renderEmployeesList();
+    if (tabId === 'myactivity') renderMyActivity();
+}
+function toggleSidebar() { const s = document.getElementById('sidebar'); s.classList.toggle('-right-64'); s.classList.toggle('right-0'); }
+function closeSidebar() { if (window.innerWidth < 1024) { const s = document.getElementById('sidebar'); s.classList.add('-right-64'); s.classList.remove('right-0'); } }
+
+async function openCustomerModal(id) {
+    const m = document.getElementById('customerModal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+    document.getElementById('customerForm').reset();
+    document.getElementById('custId').value = '';
+    document.getElementById('custModalTitle').innerText = 'عميل جديد';
+    document.getElementById('custDebt').value = '0';
+    document.getElementById('financeSection').style.display = 'block';
+    document.getElementById('custPassword').value = generateCustomerCode();
+    calcDebt();
+    if (id) {
+        const c = await getCustomerFromDB(id);
+        if (!c) return;
+        document.getElementById('custModalTitle').innerText = 'تعديل';
+        document.getElementById('financeSection').style.display = 'none';
+        document.getElementById('custId').value = c.id;
+        document.getElementById('custName').value = c.name || '';
+        document.getElementById('custNatId').value = c.natId || '';
+        document.getElementById('custJob').value = c.job || '';
+        document.getElementById('custPhone').value = c.phone || '';
+        document.getElementById('custAltPhone').value = c.altPhone || '';
+        document.getElementById('custWhatsapp').value = c.whatsapp || '';
+        document.getElementById('custGovSelect').value = c.gov || '';
+        document.getElementById('custDistrict').value = c.district || '';
+        document.getElementById('custAddress').value = c.address || '';
+        document.getElementById('custPassword').value = c.customerCode || c.password || generateCustomerCode();
+        document.getElementById('custChannelSelect').value = c.channel || '';
+        document.getElementById('custInterest').value = c.interest || '';
+        document.getElementById('custStatus').value = c.status || 'مفتوحة';
+        document.getElementById('custNotes').value = c.notes || '';
+    }
+}
+function closeCustomerModal() { document.getElementById('customerModal').classList.add('hidden'); document.getElementById('customerModal').classList.remove('flex'); }
+function calcDebt() {
+    const t = Number(document.getElementById('custTotal').value) || 0;
+    const d = Number(document.getElementById('custDown').value) || 0;
+    document.getElementById('custDebt').value = Math.max(0, t - d).toLocaleString() + ' ج';
+}
+async function saveCustomerData(e) {
+    e.preventDefault();
+    const id = document.getElementById('custId').value;
+    const baseData = {
+        id: id || 'c' + Date.now(),
+        name: document.getElementById('custName').value.trim(),
+        natId: document.getElementById('custNatId').value.trim(),
+        job: document.getElementById('custJob').value.trim(),
+        phone: document.getElementById('custPhone').value.trim(),
+        altPhone: document.getElementById('custAltPhone').value.trim(),
+        whatsapp: document.getElementById('custWhatsapp').value.trim(),
+        gov: document.getElementById('custGovSelect').value,
+        district: document.getElementById('custDistrict').value.trim(),
+        address: document.getElementById('custAddress').value.trim(),
+        password: document.getElementById('custPassword').value.trim() || generateCustomerCode(),
+        channel: document.getElementById('custChannelSelect').value,
+        interest: document.getElementById('custInterest').value.trim(),
+        status: document.getElementById('custStatus').value,
+        notes: document.getElementById('custNotes').value.trim()
+    };
+    if (id) {
+        const existing = await getCustomerFromDB(id);
+        if (existing) {
+            const updated = { ...existing, ...baseData, _subLoaded: existing._subLoaded };
+            await saveCustomerToDB(updated);
+            const idx = loadedCustomers.findIndex(c => c.id === id);
+            if (idx >= 0) loadedCustomers[idx] = { ...loadedCustomers[idx], ...updated };
+        }
+        logActivity('edit_customer', `تعديل: ${baseData.name}`);
+        showToast('تم التحديث');
+    } else {
+        const t = Number(document.getElementById('custTotal').value) || 0;
+        const d = Number(document.getElementById('custDown').value) || 0;
+        const newCustomer = {
+            ...baseData,
+            products: [{
+                id: 'p' + Date.now(), vehicle: baseData.interest || 'غير محدد',
+                payMethod: document.getElementById('custPayMethod').value,
+                financeEntity: document.getElementById('custFinanceEntity').value,
+                stage: '', status: baseData.status, total: t, down: d,
+                monthly: Number(document.getElementById('custMonthly').value) || 0,
+                deliveryDate: document.getElementById('custDeliveryDate').value || '',
+                chassis: '', motor: '', model: '',
+                debt: Math.max(0, t - d), notes: '', createdAt: Date.now(),
+                createdBy: currentUser.id, createdByName: currentUser.name
+            }],
+            followups: [], _subLoaded: true,
+            createdAt: Date.now(), createdBy: currentUser.id, createdByName: currentUser.name
+        };
+        await saveCustomerToDB(newCustomer);
+        loadedCustomers.unshift(newCustomer);
+        totalCustomersCount++;
+        logActivity('add_customer', `إضافة: ${baseData.name}`, baseData.password, baseData.id);
+        showToast('تم التسجيل - الكود: ' + baseData.password);
+    }
+    appData.customers = loadedCustomers;
+    saveCustomersCache();
+    closeCustomerModal();
+    updateDashboard();
+    if (document.getElementById('tab-search').classList.contains('block')) executeCustomerSearch();
+}
+
+function deleteAllCustomers() { if (!isManager()) return showToast('للمدير فقط', 'error'); document.getElementById('deleteAllModal').classList.remove('hidden'); document.getElementById('deleteAllModal').classList.add('flex'); }
+function closeDeleteAllModal() { document.getElementById('deleteAllModal').classList.add('hidden'); document.getElementById('deleteAllModal').classList.remove('flex'); }
+async function confirmDeleteAll() {
+    closeDeleteAllModal(); showLoading();
+    try {
+        await sb.from('customers').delete().neq('id', '');
+        appData.customers = []; loadedCustomers = []; totalCustomersCount = 0;
+        localStorage.removeItem('autocrmCustomersCache');
+        updateDashboard(); executeCustomerSearch();
+        showToast('تم الحذف');
+    } catch(e) { showToast('خطأ: ' + e.message, 'error'); }
+    hideLoading();
+}
+
+async function openCustomerDetail(custId) {
+    const m = document.getElementById('customerDetailModal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+    document.getElementById('customerDetailContent').innerHTML = '<div class="text-center py-12"><i class="fa-solid fa-spinner fa-spin text-3xl text-sky"></i></div>';
+    const c = await getCustomerFromDB(custId);
+    if (!c) { showToast('غير موجود', 'error'); closeCustomerDetail(); return; }
+    currentDetailCustomerId = custId;
+    const sb2 = (s) => { const map = { 'منفذة': 'badge-green', 'جاري التقسيط': 'badge-yellow', 'مفتوحة': 'badge-blue', 'مفقودة': 'badge-red' }; return `<span class="badge ${map[s] || 'badge-gray'}">${s}</span>`; };
+    let html = `<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+        <div class="md:col-span-2">
+            <h3 class="text-xl font-black text-navy-dark mb-3">${c.name}</h3>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                <div><span class="text-gray-500 font-bold block">الكود</span><b class="text-navy tracking-widest">${c.customerCode || '-'}</b></div>
+                <div><span class="text-gray-500 font-bold block">الهاتف</span><b>${c.phone || '-'}</b></div>
+                <div><span class="text-gray-500 font-bold block">البديل</span><b>${c.altPhone || '-'}</b></div>
+                <div><span class="text-gray-500 font-bold block">واتساب</span><b>${c.whatsapp || '-'}</b></div>
+                <div><span class="text-gray-500 font-bold block">القومي</span><b>${c.natId || '-'}</b></div>
+                <div><span class="text-gray-500 font-bold block">المهنة</span><b>${c.job || '-'}</b></div>
+                <div><span class="text-gray-500 font-bold block">المحافظة</span><b>${c.gov || '-'}</b></div>
+                <div><span class="text-gray-500 font-bold block">المركز</span><b>${c.district || '-'}</b></div>
+                <div class="col-span-2"><span class="text-gray-500 font-bold block">العنوان</span><b>${c.address || '-'}</b></div>
+                <div><span class="text-gray-500 font-bold block">القناة</span><b>${c.channel || '-'}</b></div>
+                <div><span class="text-gray-500 font-bold block">الحالة</span>${sb2(c.status)}</div>
+                ${c.notes ? `<div class="col-span-2"><span class="text-gray-500 font-bold block">ملاحظات</span><b>${c.notes}</b></div>` : ''}
+            </div>
+        </div>
+        <div class="bg-blue-50 p-3 rounded">
+            <div class="text-xs font-black text-navy-dark mb-2">إجراءات</div>
+            <div class="space-y-2">
+                <button onclick="closeCustomerDetail();openCustomerModal('${c.id}')" class="btn-secondary w-full py-2 text-xs rounded"><i class="fa-solid fa-pen"></i> تعديل</button>
+                <button onclick="openProductModal('${c.id}')" class="btn-primary w-full py-2 text-xs rounded"><i class="fa-solid fa-plus"></i> منتج</button>
+                <button onclick="openFollowupModal('${c.id}')" class="btn-primary w-full py-2 text-xs rounded"><i class="fa-solid fa-comment"></i> متابعة</button>
+                <div class="grid grid-cols-2 gap-1">
+                    ${c.phone ? `<a href="tel:${c.phone}" class="btn-secondary py-2 text-xs rounded text-center"><i class="fa-solid fa-phone"></i></a>` : ''}
+                    ${(c.whatsapp || c.altPhone) ? `<a href="https://wa.me/${(c.whatsapp || c.altPhone).replace(/^0/, '20')}" target="_blank" class="btn-secondary py-2 text-xs rounded text-center text-green-700"><i class="fa-brands fa-whatsapp"></i></a>` : ''}
+                </div>
+                ${isManager() ? `<button onclick="deleteCustomer('${c.id}')" class="btn-danger w-full py-2 text-xs rounded"><i class="fa-solid fa-trash"></i> حذف</button>` : ''}
+            </div>
+        </div>
+    </div>
+    <h4 class="font-black text-sm text-navy-dark mb-2">🚗 المنتجات (${(c.products || []).length})</h4>
+    <div class="space-y-2 mb-4">`;
+    if (!c.products || c.products.length === 0) html += '<div class="text-center text-gray-400 py-4 text-xs">لا توجد منتجات</div>';
+    else html += c.products.map((p, i) => `<div class="bg-white border border-gray-200 rounded p-3 text-xs">
+        <div class="flex justify-between mb-2">
+            <div><span class="badge badge-blue">#${i+1}</span> <b>${p.vehicle}</b> ${sb2(p.status)}</div>
+            <div class="flex gap-1">
+                <button onclick="openProductModal('${c.id}','${p.id}')" class="text-sky"><i class="fa-solid fa-pen"></i></button>
+                ${isManager() ? `<button onclick="deleteProduct('${c.id}','${p.id}')" class="text-red-400"><i class="fa-solid fa-trash"></i></button>` : ''}
+            </div>
+        </div>
+        <div class="grid grid-cols-4 gap-2">
+            <div><span class="text-gray-500 block">الدفع</span><b>${p.payMethod}</b></div>
+            <div><span class="text-gray-500 block">الجهة</span><b>${p.financeEntity || '-'}</b></div>
+            <div><span class="text-gray-500 block">الإجمالي</span><b>${Number(p.total||0).toLocaleString()}</b></div>
+            <div><span class="text-gray-500 block">المديونية</span><b class="text-amber-700">${Number(p.debt||0).toLocaleString()}</b></div>
+        </div>
+    </div>`).join('');
+    html += `</div><h4 class="font-black text-sm text-navy-dark mb-2">📅 المتابعات (${(c.followups || []).length})</h4><div class="space-y-3">`;
+    if (!c.followups || c.followups.length === 0) html += '<div class="text-center text-gray-400 py-4 text-xs">لا توجد متابعات</div>';
+    else {
+        const sorted = [...c.followups].sort((a,b) => (b.date+(b.time||'')).localeCompare(a.date+(a.time||'')));
+        html += sorted.map(f => `<div class="timeline-item"><div class="timeline-dot"></div>
+            <div class="bg-blue-50 rounded p-3 text-xs">
+                <div class="flex gap-2 mb-1"><span class="badge badge-blue">${f.reason}</span><span class="text-gray-500">${f.date} ${f.time || ''}</span></div>
+                <div>${f.notes}</div>
+            </div>
+        </div>`).join('');
+    }
+    html += '</div>';
+    document.getElementById('customerDetailContent').innerHTML = html;
+}
+function closeCustomerDetail() { document.getElementById('customerDetailModal').classList.add('hidden'); document.getElementById('customerDetailModal').classList.remove('flex'); currentDetailCustomerId = null; }
+
+async function deleteCustomer(id) {
+    if (!isManager()) return showToast('للمدير فقط', 'error');
+    if (!confirm('حذف العميل؟')) return;
+    await sb.from('customers').delete().eq('id', id);
+    loadedCustomers = loadedCustomers.filter(x => x.id !== id);
+    appData.customers = loadedCustomers;
+    if (totalCustomersCount > 0) totalCustomersCount--;
+    saveCustomersCache(); updateDashboard();
+    closeCustomerDetail();
+    if (document.getElementById('tab-search').classList.contains('block')) executeCustomerSearch();
+    showToast('تم الحذف');
+}
+
+async function openProductModal(custId, prodId) {
+    const m = document.getElementById('productModal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+    document.getElementById('productForm').reset();
+    document.getElementById('prodCustId').value = custId;
+    document.getElementById('prodId').value = '';
+    document.getElementById('prodModalTitle').innerText = 'منتج جديد';
+    document.getElementById('prodDebt').value = '0';
+    if (prodId) {
+        const c = await getCustomerFromDB(custId);
+        const p = (c?.products || []).find(x => x.id === prodId);
+        if (p) {
+            document.getElementById('prodModalTitle').innerText = 'تعديل منتج';
+            ['prodVehicle','prodStatus','prodPayMethod','prodFinance','prodStage','prodTotal','prodDown','prodMonthly','prodDeliveryDate','prodChassis','prodMotor','prodModel','prodNotes'].forEach(f => {
+                const el = document.getElementById(f);
+                if (el) el.value = p[f.replace('prod','').toLowerCase()] || p[f] || '';
+            });
+            document.getElementById('prodId').value = p.id;
+            calcProdDebt();
+        }
+    }
+}
+function closeProductModal() { document.getElementById('productModal').classList.add('hidden'); document.getElementById('productModal').classList.remove('flex'); }
+function calcProdDebt() {
+    const t = Number(document.getElementById('prodTotal').value) || 0;
+    const d = Number(document.getElementById('prodDown').value) || 0;
+    document.getElementById('prodDebt').value = Math.max(0, t - d).toLocaleString() + ' ج';
+}
+async function saveProductData(e) {
+    e.preventDefault();
+    const custId = document.getElementById('prodCustId').value;
+    const prodId = document.getElementById('prodId').value;
+    const t = Number(document.getElementById('prodTotal').value) || 0;
+    const d = Number(document.getElementById('prodDown').value) || 0;
+    const data = {
+        id: prodId || 'p' + Date.now(),
+        customer_id: custId,
+        vehicle: document.getElementById('prodVehicle').value,
+        status: document.getElementById('prodStatus').value,
+        pay_method: document.getElementById('prodPayMethod').value,
+        finance_entity: document.getElementById('prodFinance').value,
+        stage: document.getElementById('prodStage').value,
+        total: t, down: d,
+        monthly: Number(document.getElementById('prodMonthly').value) || 0,
+        delivery_date: document.getElementById('prodDeliveryDate').value || '',
+        chassis: document.getElementById('prodChassis').value.trim(),
+        motor: document.getElementById('prodMotor').value.trim(),
+        model: document.getElementById('prodModel').value.trim(),
+        debt: Math.max(0, t - d),
+        notes: document.getElementById('prodNotes').value.trim(),
+        created_at: Date.now(),
+        created_by: currentUser.id, created_by_name: currentUser.name
+    };
+    await sb.from('products').upsert(data);
+    const idx = loadedCustomers.findIndex(c => c.id === custId);
+    if (idx >= 0) {
+        const prods = loadedCustomers[idx].products || [];
+        const pIdx = prods.findIndex(p => p.id === data.id);
+        const prodObj = { id: data.id, vehicle: data.vehicle, payMethod: data.pay_method, financeEntity: data.finance_entity, stage: data.stage, status: data.status, total: data.total, down: data.down, monthly: data.monthly, debt: data.debt, deliveryDate: data.delivery_date, chassis: data.chassis, motor: data.motor, model: data.model, notes: data.notes, createdAt: data.created_at };
+        if (pIdx >= 0) prods[pIdx] = prodObj; else prods.push(prodObj);
+        loadedCustomers[idx].products = prods;
+    }
+    const c = loadedCustomers.find(x => x.id === custId);
+    logActivity(prodId ? 'edit_product' : 'add_product', `${prodId ? 'تعديل' : 'إضافة'} منتج لـ ${c?.name || ''}`);
+    closeProductModal();
+    if (currentDetailCustomerId === custId) openCustomerDetail(custId);
+    showToast('تم الحفظ');
+}
+async function deleteProduct(custId, prodId) {
+    if (!isManager()) return showToast('للمدير فقط', 'error');
+    if (!confirm('حذف المنتج؟')) return;
+    await sb.from('products').delete().eq('id', prodId);
+    const idx = loadedCustomers.findIndex(c => c.id === custId);
+    if (idx >= 0) loadedCustomers[idx].products = (loadedCustomers[idx].products || []).filter(p => p.id !== prodId);
+    if (currentDetailCustomerId === custId) openCustomerDetail(custId);
+    showToast('تم الحذف');
+}
+
+function openFollowupModal(custId) {
+    const c = loadedCustomers.find(x => x.id === custId);
+    const m = document.getElementById('followupModal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+    document.getElementById('followupForm').reset();
+    document.getElementById('fpCustId').value = custId;
+    document.getElementById('fpCustName').value = c ? c.name : '';
+    const d = new Date();
+    document.getElementById('fpDate').value = d.toISOString().split('T')[0];
+    document.getElementById('fpTime').value = d.toTimeString().slice(0, 5);
+}
+function closeFollowupModal() { document.getElementById('followupModal').classList.add('hidden'); document.getElementById('followupModal').classList.remove('flex'); }
+async function saveFollowupData(e) {
+    e.preventDefault();
+    const custId = document.getElementById('fpCustId').value;
+    const data = {
+        id: 'f' + Date.now(),
+        customer_id: custId,
+        date: document.getElementById('fpDate').value,
+        time: document.getElementById('fpTime').value,
+        reason: document.getElementById('fpReason').value,
+        notes: document.getElementById('fpNotes').value.trim(),
+        created_at: Date.now(), by_name: currentUser.name, by_id: currentUser.id
+    };
+    await sb.from('followups').insert(data);
+    const taskId = 't' + Date.now();
+    await sb.from('tasks').insert({ id: taskId, customer_id: custId, date: data.date, notes: `[${data.reason}] ${data.notes}`, completed: false, by_name: currentUser.name, created_at: Date.now() });
+    appData.tasks.push({ id: taskId, customerId: custId, date: data.date, notes: `[${data.reason}] ${data.notes}`, completed: false, createdAt: Date.now(), byName: currentUser.name });
+    logActivity('add_followup', `متابعة جديدة`);
+    closeFollowupModal();
+    updateDashboard(); renderFullTasks(); renderDashboardTasks();
+    if (currentDetailCustomerId === custId) openCustomerDetail(custId);
+    showToast('تم الحفظ');
+}
+
+function handleGlobalSearch() { const q = document.getElementById('globalPhoneSearchInput')?.value?.trim(); if (!q) return; switchTab('search'); document.getElementById('mainSearchPhone').value = q; executeCustomerSearch(); }
+function searchCustomerFromDash() { const q = document.getElementById('dashPhoneInput').value.trim(); if (!q) return showToast('أدخل كلمة', 'error'); switchTab('search'); document.getElementById('mainSearchPhone').value = q; executeCustomerSearch(); }
+
+async function executeCustomerSearch() {
+    const q = document.getElementById('mainSearchPhone').value.trim();
+    const area = document.getElementById('searchResultsArea');
+    const loadMoreWrap = document.getElementById('loadMoreWrap');
+    if (!q) {
+        if (loadedCustomers.length === 0) {
+            area.innerHTML = '<div class="panel p-6 text-center"><i class="fa-solid fa-users text-gray-300 text-4xl mb-2"></i><div class="text-gray-400 font-bold text-sm">لا يوجد عملاء</div></div>';
+            loadMoreWrap.classList.add('hidden'); return;
+        }
+        const toShow = loadedCustomers.slice(0, 50);
+        const status = backgroundLoadingInProgress && !allCustomersLoaded ? ` <span class="text-sky animate-pulse text-xs">⏳ ${loadedCustomers.length}/${totalCustomersCount}</span>` : '';
+        area.innerHTML = `<div class="text-xs font-black text-gray-500 mb-2"><i class="fa-solid fa-users text-sky"></i> ${allCustomersLoaded ? `كل العملاء (${loadedCustomers.length})` : `محمل: ${loadedCustomers.length}/${totalCustomersCount}`}${status}</div>` + toShow.map(c => renderCustomerCard(c)).join('');
+        if (loadedCustomers.length > 50) loadMoreWrap.classList.remove('hidden'); else loadMoreWrap.classList.add('hidden');
+        return;
+    }
+    area.innerHTML = '<div class="text-center py-8"><i class="fa-solid fa-spinner fa-spin text-2xl text-sky"></i></div>';
+    loadMoreWrap.classList.add('hidden');
+    try {
+        const qLower = q.toLowerCase();
+        const results = loadedCustomers.filter(c =>
+            (c.name || '').toLowerCase().includes(qLower) ||
+            (c.phone || '').includes(q) ||
+            (c.altPhone || '').includes(q) ||
+            (c.whatsapp || '').includes(q) ||
+            (c.customerCode || '').toUpperCase().includes(q.toUpperCase()) ||
+            (c.natId || '').includes(q)
+        );
+        if (results.length === 0) {
+            area.innerHTML = '<div class="panel p-6 text-center"><i class="fa-solid fa-magnifying-glass text-gray-300 text-4xl mb-2"></i><div class="text-gray-500 font-black text-sm">لا توجد نتائج</div></div>';
+            return;
+        }
+        area.innerHTML = `<div class="text-xs font-black text-gray-500 mb-2"><i class="fa-solid fa-circle-check text-green-600"></i> نتائج (${results.length})</div>` + results.slice(0, 100).map(c => renderCustomerCard(c)).join('');
+    } catch(e) { area.innerHTML = `<div class="panel p-6 text-center text-red-500 text-sm">خطأ</div>`; }
+}
+
+function renderCustomerCard(c) {
+    const products = c.products || [];
+    const lastProduct = products.length ? products[products.length - 1] : {};
+    const status = lastProduct.status || c.status || 'مفتوحة';
+    const map = { 'منفذة': 'badge-green', 'جاري التقسيط': 'badge-yellow', 'مفتوحة': 'badge-blue', 'مفقودة': 'badge-red' };
+    const statusCls = map[status] || 'badge-gray';
+    const totalDebt = products.reduce((sum, p) => sum + (Number(p.debt) || 0), 0);
+    const firstLetter = (c.name || '?').charAt(0).toUpperCase();
+    return `<div class="panel p-3 mb-2 task-clickable" onclick="openCustomerDetail('${c.id}')">
+        <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-navy-dark to-sky flex items-center justify-center text-white font-black text-sm shrink-0">${firstLetter}</div>
+            <div class="flex-1 min-w-0">
+                <div class="flex flex-wrap items-center gap-1.5 mb-1">
+                    <b class="text-navy-dark text-sm">${c.name || '-'}</b>
+                    <span class="badge ${statusCls}">${status}</span>
+                    ${c.customerCode ? `<span class="badge badge-blue tracking-widest text-[10px]">${c.customerCode}</span>` : ''}
+                </div>
+                <div class="text-[11px] text-gray-500 font-bold flex flex-wrap gap-x-3 gap-y-1">
+                    ${c.phone ? `<span><i class="fa-solid fa-phone text-sky"></i> ${c.phone}</span>` : ''}
+                    ${c.gov ? `<span><i class="fa-solid fa-location-dot text-sky"></i> ${c.gov}</span>` : ''}
+                    ${lastProduct.vehicle ? `<span><i class="fa-solid fa-car text-sky"></i> ${lastProduct.vehicle}</span>` : ''}
+                </div>
+            </div>
+            <div class="text-left shrink-0">
+                ${totalDebt > 0 ? `<div class="text-[10px] text-amber-700 font-black">${totalDebt.toLocaleString()} ج</div>` : ''}
+            </div>
+        </div>
+    </div>`;
+}
+
+async function loadMoreCustomers() {
+    const area = document.getElementById('searchResultsArea');
+    const currentShown = area.querySelectorAll('.panel.task-clickable').length;
+    const toShow = loadedCustomers.slice(currentShown, currentShown + 50);
+    if (toShow.length > 0) area.insertAdjacentHTML('beforeend', toShow.map(c => renderCustomerCard(c)).join(''));
+    if (currentShown + toShow.length >= loadedCustomers.length && allCustomersLoaded) { document.getElementById('loadMoreWrap').classList.add('hidden'); showToast('وصلت لآخر عميل'); }
+}
+
+function updateDashboard() {
+    const customers = appData.customers || [];
+    const displayCount = totalCustomersCount > customers.length ? totalCustomersCount : customers.length;
+    document.getElementById('kpiTotalCustomers').innerText = displayCount.toLocaleString();
+    let salesDone = 0, totalDebt = 0;
+    customers.forEach(c => { (c.products || []).forEach(p => { if ((p.status || '').includes('منفذة')) salesDone++; totalDebt += Number(p.debt) || 0; }); });
+    document.getElementById('kpiSalesDone').innerText = salesDone;
+    document.getElementById('kpiTotalDebt').innerText = totalDebt.toLocaleString();
+    const today = new Date().toISOString().split('T')[0];
+    const allPending = (appData.tasks || []).filter(t => !t.completed);
+    const todayTasks = allPending.filter(t => t.date === today);
+    document.getElementById('kpiTodayTasks').innerText = todayTasks.length;
+    document.getElementById('pendingTasksBadge').innerText = allPending.length;
+    const navCount = document.getElementById('navTasksCount');
+    if (allPending.length > 0) { navCount.innerText = allPending.length; navCount.classList.remove('hidden'); } else navCount.classList.add('hidden');
+}
+
+function renderDashboardTasks() {
+    const container = document.getElementById('dashboardTasksList');
+    if (!container) return;
+    const today = new Date().toISOString().split('T')[0];
+    const tasks = (appData.tasks || []).filter(t => !t.completed).sort((a, b) => (a.date || '').localeCompare(b.date || '')).slice(0, 6);
+    if (tasks.length === 0) { container.innerHTML = '<div class="text-center text-gray-400 py-6 font-bold text-sm">لا توجد مهام</div>'; return; }
+    container.innerHTML = tasks.map(t => {
+        const cust = loadedCustomers.find(c => c.id === t.customerId);
+        const isToday = t.date === today; const isOverdue = t.date < today;
+        const dateBadge = isOverdue ? '<span class="badge badge-red">متأخرة</span>' : isToday ? '<span class="badge badge-yellow">اليوم</span>' : `<span class="badge badge-gray">${t.date || '-'}</span>`;
+        return `<div class="p-2 rounded border border-gray-200 flex items-start gap-2 task-clickable" onclick="openCustomerDetail('${t.customerId}')">
+            <button onclick="event.stopPropagation();toggleTask('${t.id}')" class="mt-0.5 w-5 h-5 rounded border-2 border-sky flex items-center justify-center shrink-0"><i class="fa-solid fa-check text-[10px] text-transparent"></i></button>
+            <div class="flex-1 min-w-0">
+                <div class="flex flex-wrap items-center gap-1.5 mb-0.5"><b class="text-xs text-navy-dark">${cust ? cust.name : 'محذوف'}</b>${dateBadge}</div>
+                <div class="text-[11px] text-gray-600 font-bold truncate">${t.notes || ''}</div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderFullTasks() {
+    const container = document.getElementById('fullTasksContainer');
+    if (!container) return;
+    const today = new Date().toISOString().split('T')[0];
+    const pending = (appData.tasks || []).filter(t => !t.completed).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    if (pending.length === 0) { container.innerHTML = '<div class="text-center text-gray-400 py-8 text-sm font-bold">لا توجد مهام</div>'; return; }
+    container.innerHTML = pending.map(t => {
+        const cust = loadedCustomers.find(c => c.id === t.customerId);
+        const isToday = t.date === today; const isOverdue = t.date < today;
+        const dateBadge = isOverdue ? '<span class="badge badge-red">متأخرة</span>' : isToday ? '<span class="badge badge-yellow">اليوم</span>' : `<span class="badge badge-gray">${t.date || '-'}</span>`;
+        return `<div class="p-2 rounded border border-gray-200 mb-1.5 flex items-start gap-2 task-clickable" onclick="openCustomerDetail('${t.customerId}')">
+            <button onclick="event.stopPropagation();toggleTask('${t.id}')" class="mt-0.5 w-5 h-5 rounded border-2 border-sky flex items-center justify-center shrink-0"><i class="fa-solid fa-check text-[10px] text-transparent"></i></button>
+            <div class="flex-1"><div class="flex flex-wrap items-center gap-1.5 mb-0.5"><b class="text-xs text-navy-dark">${cust ? cust.name : 'محذوف'}</b>${dateBadge}</div><div class="text-[11px] text-gray-600 font-bold">${t.notes || ''}</div></div>
+        </div>`;
+    }).join('');
+}
+
+function toggleTask(taskId) {
+    const t = appData.tasks.find(x => x.id === taskId);
+    if (!t) return;
+    t.completed = !t.completed;
+    try { sb.from('tasks').update({ completed: t.completed }).eq('id', taskId); } catch(e) {}
+    saveToLocal(); renderDashboardTasks(); renderFullTasks(); updateDashboard();
+    showToast(t.completed ? 'تم' : 'تم الإرجاع');
+}
+
+function initCharts() {
+    const customers = appData.customers || [];
+    const statusCounts = {};
+    customers.forEach(c => { const prods = c.products || []; if (prods.length === 0) { const s = c.status || 'مفتوحة'; statusCounts[s] = (statusCounts[s] || 0) + 1; } else prods.forEach(p => { const s = p.status || 'مفتوحة'; statusCounts[s] = (statusCounts[s] || 0) + 1; }); });
+    if (statusChartInstance) statusChartInstance.destroy();
+    statusChartInstance = new Chart(document.getElementById('chartStatus'), { type: 'doughnut', data: { labels: Object.keys(statusCounts).length ? Object.keys(statusCounts) : ['لا بيانات'], datasets: [{ data: Object.values(statusCounts).length ? Object.values(statusCounts) : [1], backgroundColor: ['#3b82f6','#f59e0b','#22c55e','#ef4444','#8b5cf6','#06b6d4'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { family: 'Cairo', weight: 'bold', size: 10 } } } } } });
+    const govCounts = {};
+    customers.forEach(c => { const g = c.gov || 'غير محدد'; govCounts[g] = (govCounts[g] || 0) + 1; });
+    if (govChartInstance) govChartInstance.destroy();
+    govChartInstance = new Chart(document.getElementById('chartGov'), { type: 'bar', data: { labels: Object.keys(govCounts), datasets: [{ label: 'العملاء', data: Object.values(govCounts), backgroundColor: '#0ea5e9', borderRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } } });
+    const vehCounts = {};
+    customers.forEach(c => (c.products || []).forEach(p => { const v = p.vehicle || 'غير محدد'; vehCounts[v] = (vehCounts[v] || 0) + 1; }));
+    if (vehicleChartInstance) vehicleChartInstance.destroy();
+    vehicleChartInstance = new Chart(document.getElementById('chartVehicles'), { type: 'bar', data: { labels: Object.keys(vehCounts), datasets: [{ label: 'الطلبات', data: Object.values(vehCounts), backgroundColor: '#1e40af', borderRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } } });
+}
+
+function renderSettingsLists() {
+    const renderList = (id, arr, key) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (!arr || arr.length === 0) { el.innerHTML = '<li class="text-center text-gray-400 py-2 text-xs">لا توجد عناصر</li>'; return; }
+        el.innerHTML = arr.map((item, i) => `<li class="flex justify-between items-center bg-page px-2 py-1.5 rounded border border-gray-200"><span>${item}</span><button onclick="removeSettingItem('${key}',${i})" class="text-red-400 p-1"><i class="fa-solid fa-xmark"></i></button></li>`).join('');
+    };
+    renderList('settingsVehiclesList', appData.config.vehicles, 'vehicles');
+    renderList('settingsChannelsList', appData.config.channels, 'channels');
+    renderList('settingsFinanceList', appData.config.financeEntities, 'financeEntities');
+    renderList('settingsFollowupList', appData.config.followupReasons, 'followupReasons');
+    renderList('settingsStagesList', appData.config.installmentStages, 'installmentStages');
+    renderList('settingsGovList', appData.config.governorates, 'governorates');
+}
+function addSettingItem(key) {
+    if (!isManager()) return showToast('للمدير فقط', 'error');
+    const labels = { vehicles: 'المركبة', channels: 'القناة', financeEntities: 'الجهة', followupReasons: 'السبب', installmentStages: 'المرحلة', governorates: 'المحافظة' };
+    const val = prompt('أدخل ' + (labels[key] || 'قيمة') + ':');
+    if (!val || !val.trim()) return;
+    const trimmed = val.trim();
+    if (!appData.config[key]) appData.config[key] = [];
+    if (appData.config[key].includes(trimmed)) return showToast('موجود', 'error');
+    appData.config[key].push(trimmed);
+    logActivity('settings', `إضافة: ${trimmed}`);
+    saveToLocal(); renderSettingsLists(); populateDropdowns(); populateFilterDropdowns();
+    showToast('تمت الإضافة');
+}
+function removeSettingItem(key, index) {
+    if (!isManager()) return showToast('للمدير فقط', 'error');
+    const arr = appData.config[key];
+    if (!arr || !arr[index]) return;
+    if (!confirm(`حذف "${arr[index]}"؟`)) return;
+    arr.splice(index, 1);
+    saveToLocal(); renderSettingsLists(); populateDropdowns(); populateFilterDropdowns();
+    showToast('تم الحذف');
+}
+function populateDropdowns() {
+    const fill = (id, arr, ph) => { const el = document.getElementById(id); if (!el) return; el.innerHTML = `<option value="">${ph}</option>` + arr.map(x => `<option value="${x}">${x}</option>`).join(''); };
+    fill('custGovSelect', appData.config.governorates, 'المحافظة');
+    fill('custChannelSelect', appData.config.channels, 'القناة');
+    fill('custFinanceEntity', appData.config.financeEntities, 'الجهة');
+    fill('fpReason', appData.config.followupReasons, 'السبب');
+    fill('prodVehicle', appData.config.vehicles, 'المركبة');
+    fill('prodFinance', appData.config.financeEntities, 'الجهة');
+    fill('prodStage', appData.config.installmentStages, 'المرحلة');
+}
+function populateFilterDropdowns() {
+    const fill = (id, arr) => { const el = document.getElementById(id); if (!el) return; el.innerHTML = '<option value="">الكل</option>' + arr.map(x => `<option value="${x}">${x}</option>`).join(''); };
+    fill('filterGov', appData.config.governorates);
+    fill('filterVehicle', appData.config.vehicles);
+    fill('filterChannel', appData.config.channels);
+    fill('filterFinance', appData.config.financeEntities);
+}
+function toggleFilters() { const panel = document.getElementById('filtersPanel'); const icon = document.getElementById('filtersIcon'); panel.classList.toggle('filter-collapsed'); icon.className = panel.classList.contains('filter-collapsed') ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up'; }
+function getActiveFilters() { return { gov: document.getElementById('filterGov').value, district: document.getElementById('filterDistrict').value.trim(), status: document.getElementById('filterStatus').value, payMethod: document.getElementById('filterPayMethod').value, vehicle: document.getElementById('filterVehicle').value, channel: document.getElementById('filterChannel').value, finance: document.getElementById('filterFinance').value, dateFrom: document.getElementById('filterDateFrom').value, dateTo: document.getElementById('filterDateTo').value }; }
+function hasActiveFilters(f) { return !!(f.gov || f.district || f.status || f.payMethod || f.vehicle || f.channel || f.finance || f.dateFrom || f.dateTo); }
+function filterCustomers(customers, f) {
+    return customers.filter(c => {
+        if (f.gov && (c.gov || '') !== f.gov) return false;
+        if (f.district && !(c.district || '').includes(f.district)) return false;
+        if (f.channel && (c.channel || '') !== f.channel) return false;
+        const products = c.products || [];
+        if (f.status && !products.some(p => (p.status || '').includes(f.status)) && !(c.status || '').includes(f.status)) return false;
+        if (f.payMethod && !products.some(p => p.payMethod === f.payMethod)) return false;
+        if (f.vehicle && !products.some(p => p.vehicle === f.vehicle)) return false;
+        if (f.finance && !products.some(p => p.financeEntity === f.finance)) return false;
+        return true;
+    });
+}
+function applyFilters() {
+    const f = getActiveFilters();
+    if (!hasActiveFilters(f)) return showToast('اختار فلتر', 'error');
+    const area = document.getElementById('searchResultsArea');
+    const results = filterCustomers(loadedCustomers, f);
+    document.getElementById('filterResultsInfo').classList.remove('hidden');
+    document.getElementById('filterResultsInfo').innerHTML = `النتائج: ${results.length}`;
+    if (results.length === 0) { area.innerHTML = '<div class="panel p-6 text-center text-gray-400 text-sm">مفيش نتائج</div>'; return; }
+    area.innerHTML = `<div class="text-xs font-black text-gray-500 mb-2">نتائج الفلترة (${results.length})</div>` + results.slice(0, 200).map(c => renderCustomerCard(c)).join('');
+}
+function clearFilters() { ['filterGov','filterDistrict','filterStatus','filterPayMethod','filterVehicle','filterChannel','filterFinance','filterDateFrom','filterDateTo'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); document.getElementById('filterResultsInfo').classList.add('hidden'); executeCustomerSearch(); }
+
+function openEmployeeModal(id) {
+    const m = document.getElementById('employeeModal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+    document.getElementById('employeeForm').reset();
+    document.getElementById('empId').value = '';
+    document.getElementById('empModalTitle').innerText = 'إضافة موظف';
+    if (id) {
+        const u = usersDb.find(x => x.id === id);
+        if (!u) return;
+        document.getElementById('empModalTitle').innerText = 'تعديل موظف';
+        document.getElementById('empId').value = u.id;
+        document.getElementById('empName').value = u.name;
+        document.getElementById('empUsername').value = u.username;
+        document.getElementById('empPassword').value = u.password;
+        document.getElementById('empPhone').value = u.phone || '';
+        document.getElementById('empRole').value = u.role;
+    }
+}
+function closeEmployeeModal() { document.getElementById('employeeModal').classList.add('hidden'); document.getElementById('employeeModal').classList.remove('flex'); }
+async function saveEmployeeData(e) {
+    e.preventDefault();
+    if (!isManager()) return showToast('للمدير فقط', 'error');
+    const id = document.getElementById('empId').value;
+    const username = document.getElementById('empUsername').value.trim();
+    const password = document.getElementById('empPassword').value;
+    const name = document.getElementById('empName').value.trim();
+    const phone = document.getElementById('empPhone').value.trim();
+    const role = document.getElementById('empRole').value;
+    if (!id && usersDb.some(u => u.username === username)) return showToast('اسم المستخدم مستخدم', 'error');
+    let userId = id;
+    if (id) {
+        const idx = usersDb.findIndex(u => u.id === id);
+        usersDb[idx] = { ...usersDb[idx], name, username, password, phone, role };
+        logActivity('edit_employee', `تعديل: ${name}`);
+    } else {
+        userId = 'u' + Date.now();
+        usersDb.push({ id: userId, username, password, name, phone, role, createdAt: Date.now() });
+        logActivity('add_employee', `إضافة: ${name}`);
+    }
+    // ارفع لـ Supabase
+    try { await sb.from('users').upsert({ id: userId, username, password, name, phone: phone || '', role, created_at: Date.now() }); } catch(e) { console.warn('Upload failed:', e); }
+    saveToLocal(); closeEmployeeModal(); renderEmployeesList();
+    showToast('تم الحفظ');
+}
+async function deleteEmployee(id) {
+    if (!isManager()) return;
+    if (id === currentUser.id) return showToast('لا يمكن حذف حسابك', 'error');
+    const u = usersDb.find(x => x.id === id);
+    if (!u || !confirm(`حذف "${u.name}"؟`)) return;
+    try { await sb.from('users').delete().eq('id', id); } catch(e) {}
+    usersDb = usersDb.filter(x => x.id !== id);
+    logActivity('delete_employee', `حذف: ${u.name}`);
+    saveToLocal(); renderEmployeesList();
+    showToast('تم الحذف');
+}
+function renderEmployeesList() {
+    const c = document.getElementById('employeesListContainer');
+    if (!c) return;
+    if (usersDb.length === 0) { c.innerHTML = '<div class="text-center text-gray-400 py-6 text-sm">لا يوجد موظفين</div>'; return; }
+    c.innerHTML = usersDb.map(u => {
+        const today = new Date().toISOString().split('T')[0];
+        const todayActions = (appData.activityLog || []).filter(a => a.userId === u.id && new Date(a.timestamp).toISOString().split('T')[0] === today).length;
+        const statusBadge = todayActions > 0 ? '<span class="badge badge-green">نشط</span>' : '<span class="badge badge-gray">غير نشط</span>';
+        const roleTag = u.role === 'manager' ? '<span class="role-tag role-manager">مدير</span>' : '<span class="role-tag role-employee">موظف</span>';
+        return `<div class="panel p-3 border-r-4 ${u.role === 'manager' ? 'border-r-purple-500' : 'border-r-sky'} flex justify-between items-center gap-2">
+            <div class="flex items-center gap-3 flex-1 min-w-0">
+                <div class="w-10 h-10 rounded-full ${u.role === 'manager' ? 'bg-gradient-to-br from-purple-600 to-purple-800' : 'bg-gradient-to-br from-navy-dark to-sky'} flex items-center justify-center text-white font-black text-sm">${u.name.split(' ').map(p=>p[0]).slice(0,2).join('')}</div>
+                <div><div class="flex flex-wrap items-center gap-1 mb-0.5"><b class="text-navy-dark text-sm">${u.name}</b>${roleTag}${statusBadge}</div><div class="text-[10px] text-gray-500 font-bold">${u.username} • ${todayActions} عملية</div></div>
+            </div>
+            <div class="flex gap-1 shrink-0">
+                <button onclick="openEmployeeModal('${u.id}')" class="btn-primary text-[10px] px-2 py-1.5 rounded"><i class="fa-solid fa-pen"></i></button>
+                ${u.id !== currentUser.id ? `<button onclick="deleteEmployee('${u.id}')" class="btn-danger text-[10px] px-2 py-1.5 rounded"><i class="fa-solid fa-trash"></i></button>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+    updateEmployeesKpi();
+}
+function updateEmployeesKpi() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('kpiTotalEmployees').innerText = usersDb.length;
+    const activeIds = new Set((appData.activityLog || []).filter(a => new Date(a.timestamp).toISOString().split('T')[0] === today).map(a => a.userId));
+    document.getElementById('kpiActiveToday').innerText = activeIds.size;
+    document.getElementById('kpiTodayActions').innerText = (appData.activityLog || []).filter(a => new Date(a.timestamp).toISOString().split('T')[0] === today).length;
+}
+
+function populateActivityFilters() { const sel = document.getElementById('activityFilterUser'); if (!sel) return; const cur = sel.value; sel.innerHTML = '<option value="">كل الموظفين</option>' + usersDb.map(u => `<option value="${u.id}">${u.name}</option>`).join(''); sel.value = cur; }
+function renderActivityLog() {
+    const c = document.getElementById('activityLogContainer');
+    if (!isManager()) { c.innerHTML = '<div class="text-center text-gray-400 py-8 text-sm">غير مصرح</div>'; return; }
+    const fu = document.getElementById('activityFilterUser').value;
+    let log = appData.activityLog || [];
+    if (fu) log = log.filter(a => a.userId === fu);
+    if (log.length === 0) { c.innerHTML = '<div class="text-center text-gray-400 py-8 text-sm">لا يوجد نشاط</div>'; return; }
+    c.innerHTML = log.slice(0, 200).map(a => activityItem(a)).join('');
+}
+function renderMyActivity() {
+    const log = (appData.activityLog || []).filter(a => a.userId === currentUser.id);
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('myTodayCount').innerText = log.filter(a => new Date(a.timestamp).toISOString().split('T')[0] === today).length;
+    document.getElementById('myCustomersCount').innerText = log.filter(a => a.type === 'add_customer').length;
+    document.getElementById('myFollowupsCount').innerText = log.filter(a => a.type === 'add_followup').length;
+    const container = document.getElementById('myActivityContainer');
+    if (log.length === 0) { container.innerHTML = '<div class="text-center text-gray-400 py-8 text-sm">لا يوجد نشاط</div>'; return; }
+    container.innerHTML = log.slice(0, 100).map(a => activityItem(a, true)).join('');
+}
+function activityItem(a, hideName = false) {
+    const d = new Date(a.timestamp);
+    const iconMap = { 'login': { ic: 'fa-right-to-bracket', cl: 'text-green-600 bg-green-100' }, 'logout': { ic: 'fa-right-from-bracket', cl: 'text-red-500 bg-red-100' }, 'add_customer': { ic: 'fa-user-plus', cl: 'text-sky bg-blue-100' }, 'add_followup': { ic: 'fa-comment-dots', cl: 'text-sky bg-blue-100' } };
+    const ic = iconMap[a.type] || { ic: 'fa-circle-info', cl: 'text-gray-500 bg-gray-100' };
+    const user = usersDb.find(u => u.id === a.userId);
+    const roleTag = user ? (user.role === 'manager' ? '<span class="role-tag role-manager">مدير</span>' : '<span class="role-tag role-employee">موظف</span>') : '';
+    return `<div class="flex items-start gap-2 p-2 border-b border-gray-100 last:border-0">
+        <div class="w-8 h-8 rounded-full ${ic.cl} flex items-center justify-center shrink-0 text-xs"><i class="fa-solid ${ic.ic}"></i></div>
+        <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap justify-between gap-1 items-center">
+                <div class="flex flex-wrap items-center gap-1">${hideName ? '' : `<b class="text-xs text-navy-dark">${a.userName}</b>${roleTag}`}<span class="text-[11px] text-gray-600 font-bold">${a.details}</span></div>
+                <span class="text-[10px] text-gray-400 font-bold">${d.toLocaleDateString('ar-EG')} ${d.toLocaleTimeString('ar-EG', {hour:'2-digit',minute:'2-digit'})}</span>
+            </div>
+        </div>
+    </div>`;
+}
+
+// ==================== IMPORT ====================
+function openImportFilePicker() {
+    if (!isManager()) return showToast('للمدير فقط', 'error');
+    const inp = document.getElementById('importLocalFile');
+    if (!inp) return;
+    inp.value = '';
+    if (inp.showPicker) { try { inp.showPicker(); return; } catch(e) {} }
+    inp.click();
+}
+async function handleLocalFileImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['xlsx','xls','csv'].includes(ext)) { showToast('صيغة غير مدعومة', 'error'); event.target.value = ''; return; }
+    await processImportFile(file);
+    event.target.value = '';
+}
+async function processImportFile(file) {
+    if (!file) return;
+    showLoading();
+    showToast('جاري القراءة: ' + file.name, 'info');
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const wb = XLSX.read(data, { type: 'array' });
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', blankrows: false });
+            if (!rawRows.length) { showToast('الملف فاضي', 'error'); hideLoading(); return; }
+            const knownKeywords = ['الاسم','اسم','name','Name','الهاتف','هاتف','phone','Phone','الموبايل','موبايل','رقم'];
+            let headerRowIndex = -1, bestScore = 0;
+            for (let i = 0; i < Math.min(10, rawRows.length); i++) {
+                const row = rawRows[i]; if (!Array.isArray(row)) continue;
+                let score = 0;
+                row.forEach(cell => { const val = String(cell || '').trim().toLowerCase(); if (!val) return; if (knownKeywords.some(k => val.includes(k.toLowerCase()))) score += 3; else if (val.length > 0 && val.length < 30) score += 1; });
+                if (score > bestScore) { bestScore = score; headerRowIndex = i; }
+            }
+            if (headerRowIndex === -1 || bestScore < 3) { alert('⚠️ مفيش صف عناوين واضح!'); hideLoading(); return; }
+            const headers = rawRows[headerRowIndex].map(h => String(h || '').trim());
+            const rows = [];
+            for (let i = headerRowIndex + 1; i < rawRows.length; i++) {
+                const rawRow = rawRows[i]; if (!Array.isArray(rawRow)) continue;
+                const obj = {}; let hasData = false;
+                headers.forEach((h, idx) => { if (!h) return; obj[h] = rawRow[idx] ?? ''; if (String(rawRow[idx] || '').trim()) hasData = true; });
+                if (hasData) rows.push(obj);
+            }
+            if (!rows.length) { showToast('مفيش بيانات', 'error'); hideLoading(); return; }
+            if (!confirm(`استيراد ${rows.length} صف؟`)) { hideLoading(); return; }
+            const getVal = (row, keys) => { for (const k of keys) if (row[k] !== undefined && String(row[k]).trim() !== '') return String(row[k]).trim(); const rowKeys = Object.keys(row); for (const k of keys) { const found = rowKeys.find(rk => rk.toLowerCase().includes(k.toLowerCase())); if (found && String(row[found] || '').trim()) return String(row[found]).trim(); } return ''; };
+            let imported = 0, skipped = 0, failed = 0;
+            const importedCustomers = [];
+            for (const row of rows) {
+                try {
+                    const name = getVal(row, ['الاسم','الاسم الكامل','اسم العميل','اسم','name','Name']);
+                    const phone = getVal(row, ['الهاتف','رقم الهاتف','الهاتف الأساسي','الموبايل','phone','Phone','mobile']);
+                    if (!name || !phone) { skipped++; continue; }
+                    let code = getVal(row, ['كود العميل','كود','code','customerCode']) || generateCustomerCode();
+                    const total = Number(getVal(row, ['الإجمالي','total']) || 0) || 0;
+                    const down = Number(getVal(row, ['المقدم','down']) || 0) || 0;
+                    const vehicle = getVal(row, ['المركبة','المركبة المطلوبة','vehicle','السيارة']) || 'غير محدد';
+                    const financeEntity = getVal(row, ['جهة التقسيط','الجهة','finance']);
+                    const status = getVal(row, ['الحالة','status']) || 'مفتوحة';
+                    const custId = 'c' + Date.now() + Math.random().toString(36).slice(2,6);
+                    const prodId = 'p' + Date.now() + Math.random().toString(36).slice(2,6);
+                    const customer = {
+                        id: custId, name, phone,
+                        natId: getVal(row, ['الرقم القومي','natId']),
+                        job: getVal(row, ['المهنة','job']),
+                        altPhone: getVal(row, ['بديل','altPhone']),
+                        whatsapp: getVal(row, ['واتساب','whatsapp']),
+                        gov: getVal(row, ['المحافظة','gov']),
+                        district: getVal(row, ['المركز/الحي','المركز','district']),
+                        address: getVal(row, ['العنوان','address']),
+                        password: code,
+                        channel: getVal(row, ['القناة','channel']),
+                        interest: vehicle, status,
+                        notes: getVal(row, ['ملاحظات','notes']),
+                        products: [{ id: prodId, vehicle, payMethod: financeEntity ? 'تقسيط' : 'كاش', financeEntity, stage: '', status, total, down, monthly: Number(getVal(row, ['القسط الشهري','monthly']) || 0) || 0, deliveryDate: getVal(row, ['تاريخ التسليم','delivery']), chassis: getVal(row, ['الشاسيه','chassis']), motor: getVal(row, ['الموتور','motor']), model: getVal(row, ['الموديل','model']), debt: Math.max(0, total - down), notes: '', createdAt: Date.now(), createdBy: currentUser.id, createdByName: currentUser.name }],
+                        followups: [],
+                        createdAt: Date.now() + imported,
+                        createdBy: currentUser.id, createdByName: currentUser.name,
+                        _subLoaded: true
+                    };
+                    try { await saveCustomerToDB(customer); } catch(dbErr) { console.warn('DB save failed:', dbErr.message); }
+                    appData.customers.push(customer);
+                    importedCustomers.push(customer);
+                    imported++;
+                } catch(rowErr) { console.error(rowErr); failed++; }
+            }
+            loadedCustomers = [...importedCustomers, ...loadedCustomers];
+            totalCustomersCount += imported;
+            saveCustomersCache(); updateDashboard();
+            switchTab('search');
+            document.getElementById('searchResultsArea').innerHTML = `<div class="text-xs font-black text-green-700 mb-3 bg-green-50 p-3 rounded border border-green-200"><i class="fa-solid fa-circle-check ml-1"></i> تم استيراد ${imported} عميل ${skipped ? '• تجاهل ' + skipped : ''} ${failed ? '• فشل ' + failed : ''}</div>` + importedCustomers.map(c => renderCustomerCard(c)).join('');
+            logActivity('import_customers', `استيراد: ${imported} عميل`);
+            showToast(`✅ تم استيراد ${imported} عميل`);
+        } catch(err) { console.error(err); showToast('خطأ: ' + err.message, 'error'); }
+        hideLoading();
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+// ==================== DRAG & DROP ====================
+(function initDragDrop() {
+    let dragCounter = 0;
+    const overlay = document.getElementById('dropOverlay');
+    if (!overlay) return;
+    const isFileDrag = (e) => { if (!e.dataTransfer) return false; const types = e.dataTransfer.types; return types && Array.from(types).includes('Files'); };
+    window.addEventListener('dragenter', (e) => { if (!isFileDrag(e)) return; e.preventDefault(); dragCounter++; if (!currentUser || currentUser.role !== 'manager') return; const ml = document.getElementById('mainLayout'); if (!ml || ml.classList.contains('hidden')) return; overlay.classList.add('active'); });
+    window.addEventListener('dragover', (e) => { if (!isFileDrag(e)) return; e.preventDefault(); });
+    window.addEventListener('dragleave', (e) => { if (!isFileDrag(e)) return; e.preventDefault(); dragCounter--; if (dragCounter <= 0) { dragCounter = 0; overlay.classList.remove('active'); } });
+    window.addEventListener('drop', async (e) => {
+        if (!isFileDrag(e)) return; e.preventDefault(); dragCounter = 0; overlay.classList.remove('active');
+        if (!currentUser || currentUser.role !== 'manager') { showToast('للمدير فقط', 'error'); return; }
+        const files = e.dataTransfer.files; if (!files || files.length === 0) return;
+        const file = files[0]; const ext = file.name.split('.').pop().toLowerCase();
+        if (!['xlsx','xls','csv'].includes(ext)) { showToast('صيغة غير مدعومة', 'error'); return; }
+        await processImportFile(file);
+    });
+    window.addEventListener('dragover', (e) => { if (isFileDrag(e)) e.preventDefault(); }, false);
+    window.addEventListener('drop', (e) => { if (isFileDrag(e)) e.preventDefault(); }, false);
+})();
+
+window.addEventListener('beforeunload', () => { if (currentUser && currentUser.roleType === 'admin') { saveToLocal(); saveCustomersCache(); } });
+
+console.log('%c🚗 AUTO CRM v21.0', 'color:#1e40af;font-size:18px;font-weight:900');
+console.log('%c👥 المستخدمون المتاحون:', 'color:#10b981;font-weight:bold');
+console.log('  1. AhmedMH / 200900 (أحمد محمود)');
+console.log('  2. Anwar zarad / 123 (انور ربيع)');
+</script>
+</body>
+</html>
