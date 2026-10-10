@@ -41,8 +41,8 @@ class DashboardController extends Controller
             $stats += [
                 'debt' => (float) Deal::sum('balance'),
                 'collected_month' => (float) Payment::where('paid_on', '>=', now()->startOfMonth()->toDateString())->sum('amount'),
-                'overdue_installments' => Installment::where('due_date', '<', today()->toDateString())->whereColumn('paid_amount', '<', 'amount')->count(),
-                'overdue_amount' => (float) Installment::where('due_date', '<', today()->toDateString())->whereColumn('paid_amount', '<', 'amount')->sum(DB::raw('amount - paid_amount')),
+                'overdue_installments' => Installment::whereHas('deal')->where('due_date', '<', today()->toDateString())->whereColumn('paid_amount', '<', 'amount')->count(),
+                'overdue_amount' => (float) Installment::whereHas('deal')->where('due_date', '<', today()->toDateString())->whereColumn('paid_amount', '<', 'amount')->sum(DB::raw('amount - paid_amount')),
             ];
         } else {
             $stats += [
@@ -78,6 +78,7 @@ class DashboardController extends Controller
             ->orderByDesc('created')->limit(8)->get(['id', 'name']) : collect();
 
         $dueInstallments = $isAdmin ? Installment::with('deal.customer:id,name,phone')
+            ->whereHas('deal')
             ->whereBetween('due_date', [today()->toDateString(), today()->addDays(7)->toDateString()])
             ->whereColumn('paid_amount', '<', 'amount')->orderBy('due_date')->limit(6)->get() : collect();
 

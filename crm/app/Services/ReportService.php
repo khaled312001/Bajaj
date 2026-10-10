@@ -150,6 +150,7 @@ class ReportService
     private function reportInstallments(Carbon $f, Carbon $t, ?int $emp): array
     {
         $items = Installment::with(['deal.customer:id,code,name,phone'])
+            ->whereHas('deal')
             ->whereBetween('due_date', [$f->toDateString(), $t->toDateString()])
             ->whereColumn('paid_amount', '<', 'amount')->orderBy('due_date')->limit(5000)->get();
         $rows = $items->map(fn ($i) => [
@@ -171,6 +172,7 @@ class ReportService
     private function reportOverdue(Carbon $f, Carbon $t, ?int $emp): array
     {
         $items = Installment::with(['deal.customer:id,code,name,phone,assigned_to', 'deal.customer.assignee:id,name'])
+            ->whereHas('deal')
             ->where('due_date', '<', today()->toDateString())->whereColumn('paid_amount', '<', 'amount')->orderBy('due_date')->limit(5000)->get();
 
         $bucket = fn ($days) => $days <= 30 ? '1–30 يوم' : ($days <= 60 ? '31–60 يوم' : ($days <= 90 ? '61–90 يوم' : 'أكثر من 90 يوم'));

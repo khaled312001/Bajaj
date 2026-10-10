@@ -56,7 +56,7 @@ class SummaryService
         $pay = Payment::query()->whereBetween('paid_on', [$from->toDateString(), $to->toDateString()]);
         $fuDone = Followup::query()->where('status', 'done')->whereBetween('completed_at', [$from, $to]);
         $fuNew = Followup::query()->whereBetween('created_at', [$from, $to]);
-        $inst = Installment::query()->whereBetween('due_date', [$from->toDateString(), $to->toDateString()]);
+        $inst = Installment::query()->whereHas('deal')->whereBetween('due_date', [$from->toDateString(), $to->toDateString()]);
         $docs = DocumentLog::query()->whereBetween('printed_at', [$from, $to]);
 
         if ($uid) {
