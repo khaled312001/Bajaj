@@ -150,6 +150,16 @@
   };
   $$('[data-toast]').forEach(el => window.toast(el.dataset.toast, el.dataset.type || 'success'));
 
+  /* copy curated text (e.g. customer info / installment breakdown) to the clipboard */
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-copy-text]');
+    if (!b) return;
+    e.preventDefault();
+    navigator.clipboard.writeText(b.dataset.copyText)
+      .then(() => window.toast('تم النسخ'))
+      .catch(() => window.toast('تعذر النسخ، جرّب يدوياً', 'error'));
+  });
+
   /* password reveal */
   $$('[data-pw]').forEach(b => b.addEventListener('click', () => { const i = document.getElementById(b.dataset.pw); i.type = i.type === 'password' ? 'text' : 'password'; b.firstElementChild.className = i.type === 'password' ? 'fa-regular fa-eye' : 'fa-regular fa-eye-slash'; }));
 

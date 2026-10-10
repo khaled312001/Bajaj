@@ -28,6 +28,7 @@
 <div class="btn-group mb no-print">
     <a class="btn btn-ghost" href="tel:{{ $customer->phone }}"><i class="fa-solid fa-phone" style="color:var(--blue-600)"></i> اتصال</a>
     @if($customer->whatsappLink())<a class="btn btn-ghost" target="_blank" rel="noopener noreferrer" href="{{ $customer->whatsappLink() }}"><i class="fa-brands fa-whatsapp" style="color:#16a34a"></i> واتساب</a>@endif
+    <button type="button" class="btn btn-ghost no-print" data-copy-text="{{ $customer->basicInfoCopyText($isAdmin) }}"><i class="fa-solid fa-copy" style="color:var(--blue-600)"></i> نسخ بيانات العميل</button>
     @if(auth()->user()->allows('followups', 'create'))<button class="btn btn-primary" data-open="m-fu-add"><i class="fa-solid fa-calendar-plus"></i> متابعة جديدة</button>@endif
     @if(auth()->user()->allows('deals', 'create'))<a class="btn btn-soft" href="{{ route('deals.create', $customer) }}"><i class="fa-solid fa-car"></i> صفقة جديدة</a>@endif
     @if(auth()->user()->allows('customers', 'edit'))<a class="btn btn-ghost" href="{{ route('customers.edit', $customer) }}"><i class="fa-solid fa-pen"></i> تعديل</a>@endif
@@ -103,10 +104,12 @@
     <div id="deals">
     @forelse($deals as $d)
         @php($paidPct = $d->total_payable > 0 ? min(100, $d->paid_total / $d->total_payable * 100) : 0)
+        @php($installmentCopyText = $d->installmentCopyText())
         <div class="card" style="margin-bottom:18px">
             <div class="card-head">
                 <h3><i class="fa-solid fa-car"></i> {{ $d->vehicle ?: 'صفقة' }} {{ $d->model }} <span class="badge {{ $d->status_class }}">{{ $d->status }}</span> <span class="badge gray">{{ $d->pay_method }}</span></h3>
                 <div class="btn-group no-print">
+                    @if($installmentCopyText)<button type="button" class="btn btn-xs btn-ghost" data-copy-text="{{ $installmentCopyText }}"><i class="fa-solid fa-copy" style="color:var(--blue-600)"></i> نسخ للتقسيط</button>@endif
                     @if($d->installments->count())<a class="btn btn-xs btn-ghost" href="{{ route('documents.create', ['type' => 'statement', 'deal' => $d->id]) }}"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> كشف PDF</a>@endif
                     <a class="btn btn-xs btn-ghost" href="{{ route('documents.index', ['deal' => $d->id]) }}"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> مستندات</a>
                     @if($d->installments->count())<a class="btn btn-xs btn-ghost" href="{{ route('deals.schedule', $d) }}"><i class="fa-solid fa-table-list"></i> جدول الأقساط</a>@endif

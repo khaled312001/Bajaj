@@ -176,4 +176,38 @@ class Customer extends Model
         $n = self::normalizePhone($this->whatsapp ?: $this->phone);
         return $n ? 'https://wa.me/20' . ltrim($n, '0') : null;
     }
+
+    /** Plain-text summary for pasting into WhatsApp, e.g. to send to a financing company. */
+    public function basicInfoCopyText(bool $showFullNatId): string
+    {
+        $lines = ['بيانات العميل', 'الاسم: ' . $this->name];
+        if ($this->phone) {
+            $lines[] = 'الهاتف: ' . $this->phone;
+        }
+        if ($this->alt_phone && $this->alt_phone !== $this->phone) {
+            $lines[] = 'الهاتف البديل: ' . $this->alt_phone;
+        }
+        if ($this->whatsapp && $this->whatsapp !== $this->phone && $this->whatsapp !== $this->alt_phone) {
+            $lines[] = 'واتساب: ' . $this->whatsapp;
+        }
+        if ($this->governorate) {
+            $lines[] = 'المحافظة: ' . $this->governorate;
+        }
+        if ($this->district) {
+            $lines[] = 'المركز: ' . $this->district;
+        }
+        if ($this->address) {
+            $lines[] = 'العنوان: ' . $this->address;
+        }
+        $natId = $showFullNatId ? $this->nat_id : $this->maskedNatId();
+        if ($natId) {
+            $lines[] = 'الرقم القومي: ' . $natId;
+        }
+        $entity = $this->deals()->whereNotNull('finance_entity')->latest()->value('finance_entity');
+        if ($entity) {
+            $lines[] = 'جهة التقسيط: ' . $entity;
+        }
+
+        return implode("\n", $lines);
+    }
 }

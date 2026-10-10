@@ -62,6 +62,37 @@ class Deal extends Model
         return $this->pay_method === 'تقسيط';
     }
 
+    /** Plain-text installment breakdown for pasting into WhatsApp, e.g. to send to the financing company. */
+    public function installmentCopyText(): ?string
+    {
+        if (! $this->isInstallment() || $this->monthly_installment <= 0) {
+            return null;
+        }
+
+        $fmt = fn ($v) => number_format((float) $v, 0, '.', ',');
+        $firstTotal = $this->down_payment + $this->monthly_installment + $this->admin_fees;
+        $remainingMonths = max(0, $this->months - 1);
+        $grandTotal = $firstTotal + $this->monthly_installment * $remainingMonths;
+
+        return implode("\n", [
+            '*تفاصيل التقسيط*',
+            '=================================',
+            '*المنتج:* ' . trim($this->vehicle . ' ' . $this->model),
+            '*سعر الكاش:* ' . $fmt($this->total_price) . ' جنيه',
+            '*المقدم الأساسي:* ' . $fmt($this->down_payment) . ' جنيه',
+            '*الباقي:* ' . $fmt($this->financed_amount) . ' جنيه',
+            '*المصاريف الإدارية:* ' . $fmt($this->admin_fees) . ' جنيه',
+            '*القسط الأول:* ' . $fmt($this->monthly_installment) . ' جنيه',
+            '*إجمالي المقدم (شامل القسط الاول والمصاريف):* ' . $fmt($firstTotal) . ' جنيه',
+            '=================================',
+            '',
+            '*نظام التقسيط (' . $this->months . ' شهر)*',
+            '   > باقي الأقساط: ' . $fmt($this->monthly_installment) . ' جنيه × (' . $remainingMonths . ' شهر)',
+            '   > الإجمالي الكلي: ' . $fmt($grandTotal) . ' جنيه',
+            '---------------------------------',
+        ]);
+    }
+
     public function getStatusClassAttribute(): string
     {
         return match ($this->status) {
