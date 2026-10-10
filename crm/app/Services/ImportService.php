@@ -88,7 +88,11 @@ class ImportService
     public function validate(string $type, array $rows): array
     {
         $lists = TemplateBuilder::lists();
-        $users = User::pluck('id', 'username')->mapWithKeys(fn ($id, $u) => [mb_strtolower($u) => $id])->all();
+        $users = [];
+        foreach (User::all(['id', 'username', 'name']) as $u) {
+            $users[$this->normalizeName($u->username)] = $u->id;
+            $users[$this->normalizeName($u->name)] = $u->id;
+        }
         $clean = [];
         $errors = [];
 
@@ -145,7 +149,7 @@ class ImportService
         }
         $d['assigned_to'] = null;
         if ($u = $this->str($r['assigned_username'] ?? null)) {
-            $d['assigned_to'] = $users[mb_strtolower($u)] ?? null;
+            $d['assigned_to'] = $users[$this->normalizeName($u)] ?? null;
             if (! $d['assigned_to']) {
                 $errs[] = "الموظف '{$u}' غير موجود.";
             }
@@ -212,13 +216,25 @@ class ImportService
         $d['notes'] = $this->str($r['notes'] ?? null, 2000);
         $d['assigned_to'] = null;
         if ($u = $this->str($r['assigned_username'] ?? null)) {
-            $d['assigned_to'] = $users[mb_strtolower($u)] ?? null;
+            $d['assigned_to'] = $users[$this->normalizeName($u)] ?? null;
             if (! $d['assigned_to']) {
                 $errs[] = "الموظف '{$u}' غير موجود.";
             }
         }
 
         return $d;
+    }
+
+    /** Case/diacritics/alef-variant-insensitive key for matching a username or an Arabic display name. */
+    private function normalizeName(string $s): string
+    {
+        $s = trim(preg_replace('/\s+/u', ' ', $s));
+        $s = preg_replace('/[\x{064B}-\x{065F}\x{0670}]/u', '', $s); // tashkeel/diacritics
+        $s = preg_replace('/[إأآٱ]/u', 'ا', $s); // alef variants -> bare alef
+        $s = str_replace('ى', 'ي', $s);
+        $s = str_replace('ة', 'ه', $s);
+
+        return mb_strtolower($s);
     }
 
     private function cleanPayment(array $r, array &$errs): array
