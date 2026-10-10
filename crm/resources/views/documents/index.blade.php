@@ -18,7 +18,7 @@
         <a class="card doc-card" href="{{ route('documents.create', ['type' => $key] + $qs) }}">
             <div class="card-body row" style="gap:14px;align-items:flex-start">
                 <div class="doc-ic"><i class="fa-solid {{ $t['icon'] }}"></i></div>
-                <div><b>{{ $t['title'] }}</b><div class="muted small" style="margin-top:4px">{{ $t['desc'] }}</div></div>
+                <div><b>{{ $t['list_title'] ?? $t['title'] }}</b><div class="muted small" style="margin-top:4px">{{ $t['desc'] }}</div></div>
             </div>
         </a>
     @endforeach
@@ -30,7 +30,7 @@
     <form method="GET" action="{{ route('documents.index') }}#log" class="card-body" style="border-bottom:1px solid var(--line-2)">
         <div class="filter-bar">
             <div class="input-icon"><i class="fa-solid fa-magnifying-glass"></i><input class="input" name="q" value="{{ request('q') }}" placeholder="اسم العميل / المنتج / الرقم"></div>
-            <select class="input" name="type"><option value="">كل الأنواع</option>@foreach($allTypes as $k => $t)<option value="{{ $k }}" @selected(request('type') === $k)>{{ $t['title'] }}</option>@endforeach</select>
+            <select class="input" name="type"><option value="">كل الأنواع</option>@foreach($allTypes as $k => $t)<option value="{{ $k }}" @selected(request('type') === $k)>{{ $t['list_title'] ?? $t['title'] }}</option>@endforeach</select>
             @if($isAdmin)<select class="input" name="user"><option value="">كل الموظفين</option>@foreach($staff as $u)<option value="{{ $u->id }}" @selected(request('user') == $u->id)>{{ $u->name }}</option>@endforeach</select>@endif
             <input class="input" type="date" name="from" value="{{ request('from') }}" title="من تاريخ">
             <input class="input" type="date" name="to" value="{{ request('to') }}" title="إلى تاريخ">
@@ -44,7 +44,7 @@
             @php($t = $allTypes[$l->type] ?? null)
             <tr>
                 <td><span class="code">{{ \App\Services\DocumentService::docNo($l->type, $l->serial, $l->legacy_ref) }}</span></td>
-                <td>{{ $t['title'] ?? $l->type }}</td><td>{{ $l->customer_name ?: '—' }}</td><td>{{ $l->product_name ?: '—' }}</td>
+                <td>{{ $t['list_title'] ?? $t['title'] ?? $l->type }}</td><td>{{ $l->customer_name ?: '—' }}</td><td>{{ $l->product_name ?: '—' }}</td>
                 <td class="num">{{ $l->amount ? number_format($l->amount) : '—' }}</td><td>{{ $l->user?->name ?? '—' }}</td>
                 <td class="muted small">{{ $l->printed_at->format('Y/m/d H:i') }}</td>
                 <td class="t-left"><a class="btn btn-xs btn-soft" href="{{ route('documents.show', $l) }}"><i class="fa-solid fa-eye"></i> عرض / PDF</a></td>

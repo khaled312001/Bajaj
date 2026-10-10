@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\Followup;
 use App\Models\Import;
 use App\Models\Payment;
+use App\Models\Vehicle;
 use App\Services\ImportService;
 use App\Support\Activity;
 use App\Support\ResourceGuard;
@@ -191,5 +192,24 @@ class DataController extends Controller
         Activity::log('export', null, 'تصدير الدفعات إلى Excel');
 
         return SheetWriter::stream(TemplateBuilder::withData('payments', $rows), 'الدفعات-' . now()->format('Y-m-d') . '.xlsx');
+    }
+
+    public function exportVehicles(Request $request)
+    {
+        try {
+            ResourceGuard::ensureHeadroom('تصدير المخزون');
+        } catch (\RuntimeException $e) {
+            return back()->with('warning', $e->getMessage());
+        }
+        $rows = Vehicle::with('batch')->orderBy('id')->get()->map(fn ($v) => [
+            'permit_no' => $v->batch?->permit_no, 'sale_order' => $v->batch?->sale_order, 'invoice_no' => $v->batch?->invoice_no, 'driver' => $v->batch?->driver,
+            'chassis' => $v->chassis, 'motor' => $v->motor, 'type' => $v->type, 'model_year' => $v->model_year, 'color' => $v->color,
+            'source_store' => $v->source_store, 'branch_store' => $v->branch_store, 'cost_price' => $v->cost_price !== null ? (float) $v->cost_price : null,
+            'transport_cost' => $v->transport_cost !== null ? (float) $v->transport_cost : null, 'other_cost' => $v->other_cost !== null ? (float) $v->other_cost : null,
+            'arrived_at' => $v->arrived_at?->toDateString(), 'status' => $v->status_label, 'notes' => $v->notes,
+        ]);
+        Activity::log('export', null, 'تصدير المخزون إلى Excel');
+
+        return SheetWriter::stream(TemplateBuilder::withData('vehicles', $rows), 'المخزون-' . now()->format('Y-m-d') . '.xlsx');
     }
 }

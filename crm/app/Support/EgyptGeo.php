@@ -40,15 +40,28 @@ class EgyptGeo
         'جنوب سيناء' => ['الطور', 'شرم الشيخ', 'دهب', 'نويبع', 'طابا', 'سانت كاترين', 'أبو رديس', 'أبو زنيمة', 'رأس سدر'],
     ];
 
+    /** @return array<string,string[]> the admin-edited list (Settings → المحافظات والمراكز), else the built-in one. */
+    public static function data(): array
+    {
+        $saved = json_decode((string) Settings::get('geo_data'), true);
+
+        return is_array($saved) && $saved ? $saved : self::DATA;
+    }
+
+    public static function save(array $data): void
+    {
+        Settings::set('geo_data', json_encode($data, JSON_UNESCAPED_UNICODE));
+    }
+
     /** @return string[] governorate names, in a sensible order (Upper Egypt / business area first). */
     public static function all(): array
     {
-        return array_keys(self::DATA);
+        return array_keys(self::data());
     }
 
     /** @return string[] مراكز/أحياء for a governorate, or []. */
     public static function centers(?string $governorate): array
     {
-        return self::DATA[$governorate] ?? [];
+        return self::data()[$governorate] ?? [];
     }
 }

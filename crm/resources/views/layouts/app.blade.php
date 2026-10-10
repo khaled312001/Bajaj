@@ -109,7 +109,7 @@
 </div>
 
 <div id="toasts" class="toasts"></div>
-<script>window.EGYPT_GEO = @json(\App\Support\EgyptGeo::DATA);</script>
+<script>window.EGYPT_GEO = @json(\App\Support\EgyptGeo::data());</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="{{ asset('js/app.js') }}?v={{ filemtime(public_path('js/app.js')) }}"></script>
 @stack('scripts')

@@ -13,7 +13,7 @@ class Vehicle extends Model
     public const STATUSES = ['in_stock' => 'متاحة بالمخزن', 'reserved' => 'محجوزة', 'sold' => 'مباعة'];
 
     protected $fillable = [
-        'chassis', 'motor', 'type', 'model_year', 'color', 'source_store', 'branch_store', 'cost_price', 'transport_cost',
+        'batch_id', 'chassis', 'motor', 'type', 'model_year', 'color', 'source_store', 'branch_store', 'cost_price', 'transport_cost',
         'other_cost', 'arrived_at', 'status', 'deal_id', 'sold_at', 'sale_price', 'notes', 'created_by',
     ];
 
@@ -25,6 +25,11 @@ class Vehicle extends Model
     public function deal(): BelongsTo
     {
         return $this->belongsTo(Deal::class);
+    }
+
+    public function batch(): BelongsTo
+    {
+        return $this->belongsTo(VehicleBatch::class, 'batch_id');
     }
 
     public function getTotalCostAttribute(): float

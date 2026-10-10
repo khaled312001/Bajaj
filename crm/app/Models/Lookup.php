@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Cache;
 class Lookup extends Model
 {
     public const TYPES = [
-        'governorate' => 'المحافظات',
         'vehicle' => 'المركبات',
         'channel' => 'قنوات التواصل',
         'finance_entity' => 'جهات التقسيط',

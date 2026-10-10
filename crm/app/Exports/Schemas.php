@@ -12,6 +12,7 @@ class Schemas
         'customers' => ['title' => 'العملاء والصفقات', 'sheet' => 'العملاء', 'icon' => 'fa-users'],
         'followups' => ['title' => 'المتابعات', 'sheet' => 'المتابعات', 'icon' => 'fa-calendar-check'],
         'payments' => ['title' => 'دفعات الأقساط', 'sheet' => 'الدفعات', 'icon' => 'fa-money-bill-wave'],
+        'vehicles' => ['title' => 'المخزون (شاسيهات وموتورات)', 'sheet' => 'المخزون', 'icon' => 'fa-motorcycle'],
     ];
 
     /**
@@ -76,6 +77,25 @@ class Schemas
                 'paid_on' => ['تاريخ الدفع *', ['التاريخ', 'تاريخ', 'paid on', 'date'], 16, null, true],
                 'method' => ['طريقة السداد', ['السداد', 'method'], 16, 'payment_methods', false],
                 'note' => ['ملاحظة', ['ملاحظات', 'note'], 26, null, false],
+            ],
+            'vehicles' => [
+                'chassis' => ['رقم الشاسيه *', ['الشاسيه', 'شاسيه', 'رقم الشاسية', 'الشاسية', 'chassis', 'vin'], 24, null, true],
+                'motor' => ['رقم الموتور', ['الموتور', 'موتور', 'رقم المحرك', 'المحرك', 'motor', 'engine'], 22, null, false],
+                'type' => ['النوع / الموديل', ['النوع', 'المركبة', 'نوع المركبة', 'الموديل', 'type', 'model'], 20, 'vehicle', false],
+                'model_year' => ['سنة الصنع', ['السنة', 'سنة الموديل', 'year'], 10, null, false],
+                'color' => ['اللون', ['لون', 'color'], 12, null, false],
+                'source_store' => ['المخزن المورّد', ['المورد', 'المخزن المورد', 'وارد من', 'source'], 18, null, false],
+                'branch_store' => ['مخزن الفرع', ['الفرع', 'المخزن', 'branch'], 16, null, false],
+                'cost_price' => ['سعر التكلفة', ['التكلفة', 'سعر الشراء', 'cost'], 14, null, false],
+                'transport_cost' => ['تكلفة النقل', ['النقل', 'مصاريف النقل', 'transport'], 12, null, false],
+                'other_cost' => ['تكاليف أخرى', ['مصاريف اخرى', 'اخرى', 'other'], 12, null, false],
+                'arrived_at' => ['تاريخ الوصول', ['الوصول', 'تاريخ الاستلام', 'arrived'], 14, null, false],
+                'status' => ['الحالة', ['حالة المركبة', 'status'], 14, 'vehicle_statuses', false],
+                'notes' => ['ملاحظات', ['ملاحظة', 'notes'], 26, null, false],
+                'permit_no' => ['رقم الإذن', ['رقم اذن الصرف', 'اذن الصرف', 'الاذن', 'permit'], 18, null, false],
+                'sale_order' => ['أمر البيع', ['امر البيع', 'sale order'], 18, null, false],
+                'invoice_no' => ['رقم الفاتورة', ['الفاتورة', 'فاتورة', 'invoice'], 16, null, false],
+                'driver' => ['السائق المستلم', ['السائق', 'المستلم', 'driver'], 18, null, false],
             ],
         };
     }

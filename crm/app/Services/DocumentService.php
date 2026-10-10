@@ -26,41 +26,47 @@ class DocumentService
     {
         $person = self::PERSON;
         $vehicle = self::VEHICLE;
+        // traffic letters: printed on the pre-printed company letterhead paper
+        $traffic = [
+            ['traffic_dept', 'إدارة مرور', 'text', 'قنا'], ['product', 'ماركة', 'text'], ['color', 'اللون', 'text'], ['chassis', 'شاسيه رقم', 'text'],
+            ['motor', 'ماتور رقم', 'text'], ['model', 'موديل', 'text'], ['cylinders', 'عدد السلندرات', 'text', '1'],
+            ['customer_name', 'الي السيد', 'text'], ['address', 'العنوان', 'text'], ['nat_id', 'الرقم القومي', 'text'], ['traffic_code', 'رقم اعتماد المرور', 'text', '214'],
+        ];
 
         return [
             'quote' => ['title' => 'عرض سعر', 'prefix' => 'Q', 'agent' => true, 'icon' => 'fa-file-invoice-dollar', 'group' => 'مبيعات', 'desc' => 'عرض سعر نقدي للعميل بالمنتج والسعر وبيانات السداد.',
                 'fields' => [['customer_name', 'اسم العميل', 'text'], ['product', 'المنتج', 'text'], ['price', 'السعر (ج.م)', 'money'], ['validity', 'مدة سريان العرض', 'text', 'ثلاثة أيام من تاريخه'], ['notes', 'ملاحظات', 'textarea']]],
             'statement' => ['title' => 'كشف أقساط العميل', 'prefix' => 'S', 'agent' => true, 'icon' => 'fa-table-list', 'group' => 'مبيعات', 'desc' => 'جدول الأقساط والمسدد والمتبقي (يتطلب اختيار صفقة).',
                 'fields' => [['customer_name', 'اسم العميل', 'text'], ['notes', 'ملاحظات', 'textarea']]],
-            'invoice' => ['title' => 'فاتورة بيع', 'prefix' => 'I', 'agent' => false, 'icon' => 'fa-receipt', 'group' => 'مبيعات', 'desc' => 'فاتورة بيع مركبة بالمدفوع والمتبقي.',
-                'fields' => array_merge($person, $vehicle, [['price', 'الإجمالي (ج.م)', 'money'], ['paid', 'المدفوع (ج.م)', 'money'], ['pay_method', 'طريقة الدفع', 'text'], ['notes', 'ملاحظات', 'textarea']])],
+            'invoice' => ['title' => 'عقد بيع', 'prefix' => 'I', 'agent' => false, 'icon' => 'fa-receipt', 'group' => 'مبيعات', 'desc' => 'عقد بيع / إقرار استلام المركبة وملحقاتها (بدون مبالغ) بنفس نموذج الشركة.',
+                'fields' => array_merge($person, $vehicle, [['purchase_date', 'تاريخ الشراء', 'date'], ['delivered_by', 'تم التسليم بمعرفة', 'text'], ['phone', 'الموبايل', 'text']])],
             'receipt' => ['title' => 'إيصال سداد', 'prefix' => 'R', 'agent' => false, 'icon' => 'fa-money-check-dollar', 'group' => 'مبيعات', 'desc' => 'إيصال استلام مبلغ (قسط / مقدم / دفعة).',
                 'fields' => [['customer_name', 'استلمنا من السيد', 'text'], ['amount', 'المبلغ (ج.م)', 'money'], ['reason', 'وذلك عن', 'text', 'قسط'], ['pay_method', 'طريقة الدفع', 'text', 'نقدي'], ['received_by', 'المستلم', 'text']]],
-            'finance_offer' => ['title' => 'عرض سعر لجهة التمويل', 'prefix' => 'F', 'agent' => false, 'icon' => 'fa-building-columns', 'group' => 'جهات التمويل', 'desc' => 'عرض السعر المقدم لشركة التمويل (ريفي وغيرها).',
+            'finance_offer' => ['title' => 'عرض سعر', 'list_title' => 'عرض سعر لجهة التمويل', 'prefix' => 'F', 'agent' => false, 'icon' => 'fa-building-columns', 'group' => 'جهات التمويل', 'desc' => 'عرض السعر المقدم لشركة التمويل (ريفي وغيرها).',
                 'fields' => array_merge([['entity', 'جهة التمويل', 'text', 'ريفي']], [['customer_name', 'اسم العميل', 'text']], $vehicle, [['price', 'السعر (ج.م)', 'money'], ['paid', 'تم دفع (ج.م)', 'money']])],
             'finance_receipt' => ['title' => 'إقرار استلام منتج (جهة تمويل)', 'prefix' => 'FR', 'agent' => false, 'icon' => 'fa-file-signature', 'group' => 'جهات التمويل', 'desc' => 'إقرار التاجر بتسليم المنتج للعميل بموجب التمويل.',
                 'fields' => [['entity', 'جهة التمويل', 'text', 'ريفي لتمويل المشروعات متناهي الصغر'], ['customer_name', 'اسم العميل', 'text'], ['nat_id', 'الرقم القومي', 'text'], ['product', 'المنتج / السلعة', 'text'], ['quantity', 'الكمية', 'text', '1'], ['price', 'القيمة (ج.م)', 'money'], ['activity', 'نشاط التاجر', 'text', 'بيع وسائل نقل خفيف']]],
             'mobaya' => ['title' => 'مبايعة', 'prefix' => 'M', 'agent' => false, 'icon' => 'fa-stamp', 'group' => 'المرور', 'desc' => 'مبايعة لإدارة المرور لترخيص المركبة (مع خيار حظر البيع).',
-                'fields' => array_merge([['traffic_dept', 'إدارة مرور', 'text', 'قنا']], [['product', 'الماركة', 'text'], ['color', 'اللون', 'text'], ['chassis', 'شاسيه رقم', 'text'], ['motor', 'ماتور رقم', 'text'], ['model', 'الموديل', 'text'], ['cylinders', 'عدد السلندرات', 'text', '1']], [['customer_name', 'إلى السيد', 'text'], ['address', 'العنوان', 'text'], ['nat_id', 'الرقم القومي', 'text'], ['retain_title', 'مع الاحتفاظ بحق الملكية (حظر بيع)', 'check']])],
+                'fields' => array_merge([['mobaya_no', 'رقم المبايعة (يُطبع أعلى الورقة — اتركه فارغاً للكتابة باليد)', 'text']], $traffic, [['retain_title', 'مع الاحتفاظ بحق الملكية (حظر بيع)', 'check']])],
             'renewal' => ['title' => 'خطاب تجديد', 'prefix' => 'RN', 'agent' => false, 'icon' => 'fa-rotate', 'group' => 'المرور', 'desc' => 'خطاب لإدارة المرور لتجديد ترخيص المركبة لمدة سنة.',
-                'fields' => array_merge([['traffic_dept', 'إدارة مرور', 'text', 'قنا']], [['product', 'الماركة', 'text'], ['color', 'اللون', 'text'], ['chassis', 'شاسيه رقم', 'text'], ['motor', 'ماتور رقم', 'text'], ['model', 'الموديل', 'text'], ['cylinders', 'عدد السلندرات', 'text', '1']], $person)],
+                'fields' => array_merge([['doc_no', 'رقم الخطاب (يُطبع أعلى الورقة — اختياري)', 'text']], $traffic)],
             'clearance' => ['title' => 'مخالصة (رفع حظر البيع)', 'prefix' => 'C', 'agent' => false, 'icon' => 'fa-circle-check', 'group' => 'المرور', 'desc' => 'مخالصة بسداد كامل الأقساط ورفع حظر البيع.',
-                'fields' => array_merge([['traffic_dept', 'إدارة مرور', 'text', 'قنا']], [['product', 'الماركة', 'text'], ['color', 'اللون', 'text'], ['chassis', 'شاسيه رقم', 'text'], ['motor', 'ماتور رقم', 'text'], ['model', 'الموديل', 'text'], ['cylinders', 'عدد السلندرات', 'text', '1']], $person)],
+                'fields' => array_merge([['doc_no', 'رقم المخالصة (يُطبع أعلى الورقة — اختياري)', 'text']], $traffic)],
             'docs_receipt' => ['title' => 'إقرار استلام أوراق المركبة', 'prefix' => 'D', 'agent' => false, 'icon' => 'fa-folder-open', 'group' => 'إقرارات', 'desc' => 'إقرار العميل باستلام جميع أوراق المركبة (مخالصة نهائية).',
                 'fields' => array_merge($person, [['code', 'كود العميل', 'text']], $vehicle, [['mobaya_no', 'مبايعة رقم', 'text'], ['purchase_date', 'تاريخ الشراء', 'date'], ['delivered_by', 'تم التسليم بمعرفة', 'text'], ['phone', 'الموبايل', 'text']])],
             'vehicle_receipt' => ['title' => 'إقرار استلام مركبة', 'prefix' => 'V', 'agent' => false, 'icon' => 'fa-motorcycle', 'group' => 'إقرارات', 'desc' => 'إقرار العميل باستلام المركبة وملحقاتها.',
-                'fields' => array_merge($person, $vehicle, [['purchase_date', 'تاريخ الشراء', 'date'], ['delivered_by', 'تم التسليم بمعرفة', 'text']])],
+                'fields' => array_merge($person, $vehicle, [['purchase_date', 'تاريخ الشراء', 'date'], ['delivered_by', 'تم التسليم بمعرفة', 'text'], ['phone', 'الموبايل', 'text']])],
             'broker_receipt' => ['title' => 'إقرار استلام سمسار (أمانة)', 'prefix' => 'B', 'agent' => false, 'icon' => 'fa-user-shield', 'group' => 'إقرارات', 'desc' => 'إقرار شخص باستلام مركبة لتوصيلها للعميل على سبيل الأمانة.',
-                'fields' => array_merge([['broker_name', 'اسم المستلم (السمسار)', 'text'], ['broker_nat', 'رقمه القومي', 'text'], ['broker_address', 'عنوانه', 'text']], $vehicle, [['purchase_date', 'تاريخ الشراء', 'date']], [['customer_name', 'لتوصيلها للسيد', 'text'], ['nat_id', 'الرقم القومي للعميل', 'text'], ['address', 'عنوان العميل', 'text']])],
+                'fields' => array_merge([['broker_name', 'اسم المستلم (السمسار)', 'text'], ['broker_nat', 'رقمه القومي', 'text'], ['broker_address', 'عنوانه', 'text']], $vehicle, [['purchase_date', 'تاريخ الشراء', 'date']], [['customer_name', 'لتوصيلها للسيد', 'text'], ['nat_id', 'الرقم القومي للعميل', 'text'], ['address', 'عنوان العميل', 'text'], ['delivered_by', 'تم التسليم بمعرفة', 'text']])],
             'bulk_receipt' => ['title' => 'إقرار استلام كمية', 'prefix' => 'BK', 'agent' => false, 'icon' => 'fa-boxes-stacked', 'group' => 'إقرارات', 'desc' => 'إقرار استلام أكثر من مركبة (سطر لكل مركبة).',
-                'fields' => array_merge($person, [['items', 'المركبات (سطر لكل مركبة: النوع | الموديل | اللون | الشاسيه | الموتور)', 'textarea']])],
+                'fields' => array_merge($person, [['items', 'المركبات (سطر لكل مركبة: النوع | الموديل | اللون | الشاسيه | الموتور)', 'textarea'], ['purchase_date', 'تاريخ الشراء', 'date'], ['delivered_by', 'تم التسليم بمعرفة', 'text'], ['phone', 'الموبايل', 'text']])],
             'cash_received' => ['title' => 'إقرار استلام مبلغ نقدي', 'prefix' => 'CR', 'agent' => false, 'icon' => 'fa-hand-holding-dollar', 'group' => 'إقرارات', 'desc' => 'إقرار العميل باستلام مبلغ (مثل الكاش باك) وعدم الرجوع على الشركة.',
                 'fields' => array_merge($person, [['amount', 'المبلغ (ج.م)', 'money'], ['reason', 'وهو عبارة عن', 'text', 'قيمة كامل المبلغ سعر الكاش باك نظير ترخيص السيارة'], ['witness', 'اسم الشاهد (أمام الموظف)', 'text']])],
             'waiver_amount' => ['title' => 'إقرار تنازل عن مبلغ', 'prefix' => 'W', 'agent' => false, 'icon' => 'fa-file-circle-xmark', 'group' => 'إقرارات', 'desc' => 'إقرار بأن المبلغ المحول للشركة خاص بشراء مركبة باسم شخص آخر.',
-                'fields' => array_merge($person, [['amount', 'المبلغ (ج.م)', 'money'], ['bank', 'محوّل إلى', 'text', 'بنك الاسكندرية'], ['product', 'خاص بشراء', 'text'], ['chassis', 'شاسيه', 'text'], ['motor', 'موتور', 'text'], ['purchase_date', 'تاريخ الشراء', 'date'], ['to_name', 'باسم', 'text'], ['to_nat', 'رقمه القومي', 'text'], ['to_address', 'عنوانه', 'text']])],
+                'fields' => array_merge($person, [['amount', 'المبلغ (ج.م)', 'money'], ['bank', 'محوّل إلى', 'text', 'بنك الاسكندرية'], ['product', 'خاص بشراء', 'text'], ['chassis', 'شاسيه', 'text'], ['motor', 'موتور', 'text'], ['purchase_date', 'تاريخ الشراء', 'date'], ['to_name', 'باسم', 'text'], ['to_nat', 'رقمه القومي', 'text'], ['to_address', 'عنوانه', 'text'], ['phone', 'رقم الموبايل', 'text']])],
             'transfer_rights' => ['title' => 'إقرار تنازل وتحويل حق ملكية', 'prefix' => 'T', 'agent' => false, 'icon' => 'fa-people-arrows', 'group' => 'إقرارات', 'desc' => 'تنازل عميل عن حقوقه في مركبة لصالح عميل آخر (نقل ملكية).',
                 'fields' => [['customer_name', 'المتنازل', 'text'], ['nat_id', 'رقمه القومي', 'text'], ['address', 'عنوانه', 'text'], ['to_name', 'المتنازل إليه', 'text'], ['to_nat', 'رقمه القومي', 'text'], ['to_address', 'عنوانه', 'text'], ['product', 'نوع المركبة', 'text'], ['price', 'إجمالي القيمة (ج.م)', 'money'], ['chassis', 'رقم الشاسيه', 'text'], ['motor', 'رقم الموتور', 'text'], ['payment_note', 'كيفية السداد', 'text', 'جزء محول عن طريق إنستاباي والجزء الآخر عن طريق شركة التقسيط'], ['phone', 'رقم موبايل المتنازل', 'text']]],
-            'factory_auth' => ['title' => 'تفويض استلام من المصنع', 'prefix' => 'A', 'agent' => false, 'icon' => 'fa-industry', 'group' => 'إقرارات', 'desc' => 'تفويض شخص لاستلام البضاعة (تروسيكلات) من الشركة الموردة.',
+            'factory_auth' => ['title' => 'تفويض استلام', 'list_title' => 'تفويض استلام من المصنع', 'prefix' => 'A', 'agent' => false, 'icon' => 'fa-industry', 'group' => 'إقرارات', 'desc' => 'تفويض شخص لاستلام البضاعة (تروسيكلات) من الشركة الموردة.',
                 'fields' => [['to_company', 'السادة / الشركة', 'text', 'الشركة الدولية للتجارة والتسويق والتوكيلات التجارية (ايتامكو)'], ['delegate_name', 'المفوَّض', 'text'], ['delegate_nat', 'رقمه القومي', 'text'], ['goods', 'البضاعة', 'text', 'تروسيكلات طرفنا لديكم'], ['valid_until', 'سارٍ حتى', 'date']]],
         ];
     }
@@ -98,7 +104,8 @@ class DocumentService
         }
         if ($deal) {
             $p += [
-                'product' => $deal->vehicle, 'model' => $deal->model, 'color' => $deal->color, 'chassis' => $deal->chassis, 'motor' => $deal->motor,
+                'product' => $deal->vehicle ?: $deal->vehicleUnit?->type, 'model' => $deal->model ?: $deal->vehicleUnit?->model_year, 'color' => $deal->color ?: $deal->vehicleUnit?->color,
+                'chassis' => $deal->chassis ?: $deal->vehicleUnit?->chassis, 'motor' => $deal->motor ?: $deal->vehicleUnit?->motor,
                 'price' => $deal->total_price ?: null, 'paid' => (float) $deal->down_payment + (float) $deal->paid_total ?: null,
                 'purchase_date' => $deal->sale_date?->toDateString(), 'mobaya_no' => $deal->mobaya_no, 'entity' => $deal->finance_entity,
                 'pay_method' => $deal->pay_method,

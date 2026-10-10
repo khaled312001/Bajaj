@@ -27,8 +27,8 @@
 <div class="card">
     <form method="POST" action="{{ route('data.confirm', $import) }}" class="card-body">
         @csrf
-        @if($import->type === 'customers')
-            <div class="field mb" style="max-width:420px"><label>إذا كان العميل موجوداً بالفعل</label>
+        @if(in_array($import->type, ['customers', 'vehicles'], true))
+            <div class="field mb" style="max-width:420px"><label>{{ $import->type === 'vehicles' ? 'إذا كان رقم الشاسيه مسجلاً بالفعل' : 'إذا كان العميل موجوداً بالفعل' }}</label>
                 <select class="input" name="mode"><option value="skip" @selected($mode === 'skip')>تخطيه ولا تغيّر بياناته</option><option value="update" @selected($mode === 'update')>تحديث بياناته من الملف</option></select></div>
         @endif
         @if($import->valid === 0)

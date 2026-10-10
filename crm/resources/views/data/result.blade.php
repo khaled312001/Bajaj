@@ -16,7 +16,11 @@
         <div class="table-wrap" style="max-height:340px;overflow-y:auto"><table class="tbl"><tbody>@foreach(array_slice($import->errors, 0, 100) as $e)<tr><td style="width:100px"><span class="badge red">صف {{ $e['row'] }}</span></td><td>{{ $e['message'] }}</td></tr>@endforeach</tbody></table></div></div>
 @endif
 <div class="btn-group">
-    <a class="btn btn-primary" href="{{ route('customers.index') }}"><i class="fa-solid fa-users"></i> عرض العملاء</a>
+    @if($import->type === 'vehicles')
+        <a class="btn btn-primary" href="{{ route('vehicles.index') }}"><i class="fa-solid fa-motorcycle"></i> عرض المخزون</a>
+    @else
+        <a class="btn btn-primary" href="{{ route('customers.index') }}"><i class="fa-solid fa-users"></i> عرض العملاء</a>
+    @endif
     <a class="btn btn-ghost" href="{{ route('data.index') }}">استيراد ملف آخر</a>
 </div>
 @endsection

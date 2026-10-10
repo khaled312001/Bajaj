@@ -7,6 +7,7 @@
     <label>المحافظة @if($required ?? false)<span class="req">*</span>@endif</label>
     <select class="input geo-gov" name="{{ $govName }}">
         <option value="">— اختر —</option>
+        @if(!empty($govValue) && !in_array($govValue, \App\Support\EgyptGeo::all(), true))<option selected>{{ $govValue }}</option>@endif
         @foreach(\App\Support\EgyptGeo::all() as $g)
             <option @selected(($govValue ?? null) === $g)>{{ $g }}</option>
         @endforeach

@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\Lookup;
 use App\Models\User;
 use App\Support\Activity;
+use App\Support\EgyptGeo;
 use App\Support\Settings;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -16,7 +17,54 @@ class SettingsController extends Controller
     {
         $lookups = Lookup::orderBy('type')->orderBy('sort')->orderBy('id')->get()->groupBy('type');
 
-        return view('settings.index', ['lookups' => $lookups, 'types' => Lookup::TYPES, 'settings' => Settings::all()]);
+        return view('settings.index', ['lookups' => $lookups, 'types' => Lookup::TYPES, 'settings' => Settings::all(), 'geo' => EgyptGeo::data()]);
+    }
+
+    /** Add / remove a governorate or one of its مراكز. */
+    public function geo(Request $request)
+    {
+        $data = $request->validate([
+            'action' => ['required', Rule::in(['add_gov', 'del_gov', 'add_center', 'del_center'])],
+            'gov' => ['required', 'string', 'max:100'],
+            'center' => ['nullable', 'string', 'max:120'],
+        ]);
+        $geo = EgyptGeo::data();
+        $gov = trim(preg_replace('/\s+/u', ' ', $data['gov']));
+        $center = trim(preg_replace('/\s+/u', ' ', (string) ($data['center'] ?? '')));
+
+        if ($data['action'] !== 'add_gov' && ! array_key_exists($gov, $geo)) {
+            return back()->withErrors(['geo' => 'المحافظة غير موجودة.'])->withFragment('geo');
+        }
+        switch ($data['action']) {
+            case 'add_gov':
+                if (array_key_exists($gov, $geo)) {
+                    return back()->withErrors(['geo' => "محافظة {$gov} موجودة بالفعل."])->withFragment('geo');
+                }
+                $geo[$gov] = [];
+                $msg = "تمت إضافة محافظة {$gov}.";
+                break;
+            case 'del_gov':
+                unset($geo[$gov]);
+                $msg = "تم حذف محافظة {$gov}.";
+                break;
+            case 'add_center':
+                if ($center === '') {
+                    return back()->withErrors(['geo' => 'اكتب اسم المركز.'])->with('geo_open', $gov)->withFragment('geo');
+                }
+                if (in_array($center, $geo[$gov], true)) {
+                    return back()->withErrors(['geo' => "مركز {$center} موجود بالفعل في {$gov}."])->with('geo_open', $gov)->withFragment('geo');
+                }
+                $geo[$gov][] = $center;
+                $msg = "تمت إضافة مركز {$center} إلى {$gov}.";
+                break;
+            default:
+                $geo[$gov] = array_values(array_filter($geo[$gov], fn ($c) => $c !== $center));
+                $msg = "تم حذف مركز {$center} من {$gov}.";
+        }
+        EgyptGeo::save($geo);
+        Activity::log('settings', null, $msg);
+
+        return back()->with('success', $msg)->with('geo_open', $data['action'] === 'del_gov' ? null : $gov)->withFragment('geo');
     }
 
     public function updateGeneral(Request $request)

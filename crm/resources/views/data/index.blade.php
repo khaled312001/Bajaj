@@ -11,7 +11,7 @@
 
 <div class="grid g3 mb">
     @foreach($types as $key => $t)
-    <div class="card">
+    <div class="card" id="{{ $key }}">
         <div class="card-head"><h3><i class="fa-solid {{ $t['icon'] }}"></i> {{ $t['title'] }}</h3></div>
         <div class="card-body">
             <div class="btn-group mb">
@@ -27,6 +27,9 @@
                 </label>
                 @if($key === 'customers')
                     <div class="field mt"><label>إذا كان العميل موجوداً (نفس الكود أو الهاتف)</label>
+                        <select class="input" name="mode"><option value="skip">تخطيه ولا تغيّر بياناته</option><option value="update">تحديث بياناته من الملف</option></select></div>
+                @elseif($key === 'vehicles')
+                    <div class="field mt"><label>إذا كان رقم الشاسيه مسجلاً بالفعل</label>
                         <select class="input" name="mode"><option value="skip">تخطيه ولا تغيّر بياناته</option><option value="update">تحديث بياناته من الملف</option></select></div>
                 @endif
                 <button class="btn btn-primary btn-block mt" type="submit"><i class="fa-solid fa-magnifying-glass-chart"></i> رفع ومعاينة</button>

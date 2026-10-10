@@ -86,6 +86,7 @@ Route::middleware(['auth', 'guard.app'])->group(function () {
 
     // documents (PDF)
     Route::get('/documents', [DocumentController::class, 'index'])->middleware('perm:documents,view')->name('documents.index');
+    Route::get('/documents/customers', [CustomerController::class, 'lookup'])->middleware('throttle:60,1')->name('documents.customers');
     Route::get('/documents/new/{type}', [DocumentController::class, 'create'])->name('documents.create');
     Route::post('/documents/new/{type}', [DocumentController::class, 'store'])->middleware('throttle:60,1')->name('documents.store');
     Route::get('/documents/{document}', [DocumentController::class, 'show'])->name('documents.show');
@@ -96,6 +97,9 @@ Route::middleware(['auth', 'guard.app'])->group(function () {
     // stock (read-only list for staff; management for admin)
     Route::get('/vehicles', [VehicleController::class, 'index'])->middleware('perm:vehicles,view')->name('vehicles.index');
     Route::post('/vehicles', [VehicleController::class, 'store'])->middleware('perm:vehicles,create')->name('vehicles.store');
+    Route::post('/vehicles/bulk', [VehicleController::class, 'bulkStore'])->middleware('perm:vehicles,create')->name('vehicles.bulk');
+    Route::put('/vehicles/batches/{batch}', [VehicleController::class, 'updateBatch'])->middleware('perm:vehicles,edit')->name('vehicles.batches.update');
+    Route::get('/vehicles/lookup', [VehicleController::class, 'lookup'])->middleware('throttle:120,1')->name('vehicles.lookup');
     Route::put('/vehicles/{vehicle}', [VehicleController::class, 'update'])->middleware('perm:vehicles,edit')->name('vehicles.update');
     Route::delete('/vehicles/{vehicle}', [VehicleController::class, 'destroy'])->middleware('perm:vehicles,delete')->name('vehicles.destroy');
 
@@ -140,6 +144,7 @@ Route::middleware(['auth', 'guard.app'])->group(function () {
         Route::get('/data/export/customers', [DataController::class, 'exportCustomers'])->name('data.export.customers');
         Route::get('/data/export/followups', [DataController::class, 'exportFollowups'])->name('data.export.followups');
         Route::get('/data/export/payments', [DataController::class, 'exportPayments'])->name('data.export.payments');
+        Route::get('/data/export/vehicles', [DataController::class, 'exportVehicles'])->name('data.export.vehicles');
 
         Route::resource('users', UserController::class)->except(['show'])->parameters(['users' => 'user']);
         Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
@@ -147,6 +152,7 @@ Route::middleware(['auth', 'guard.app'])->group(function () {
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::put('/settings/general', [SettingsController::class, 'updateGeneral'])->name('settings.general');
         Route::post('/settings/lookups', [SettingsController::class, 'storeLookup'])->name('settings.lookups.store');
+        Route::post('/settings/geo', [SettingsController::class, 'geo'])->name('settings.geo');
         Route::post('/settings/lookups/{lookup}/toggle', [SettingsController::class, 'toggleLookup'])->name('settings.lookups.toggle');
         Route::delete('/settings/lookups/{lookup}', [SettingsController::class, 'destroyLookup'])->name('settings.lookups.destroy');
 

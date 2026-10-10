@@ -44,7 +44,7 @@
         </form>
     @endif
 </div>
-<script>window.EGYPT_GEO = @json(\App\Support\EgyptGeo::DATA);</script>
+<script>window.EGYPT_GEO = @json(\App\Support\EgyptGeo::data());</script>
 <script src="{{ asset('js/app.js') }}?v={{ filemtime(public_path('js/app.js')) }}"></script>
 </body>
 </html>

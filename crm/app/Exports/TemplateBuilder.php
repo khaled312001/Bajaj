@@ -5,6 +5,8 @@ namespace App\Exports;
 use App\Models\Customer;
 use App\Models\Lookup;
 use App\Models\User;
+use App\Models\Vehicle;
+use App\Support\EgyptGeo;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -21,7 +23,7 @@ class TemplateBuilder
     public static function lists(): array
     {
         return [
-            'governorate' => Lookup::list('governorate'),
+            'governorate' => EgyptGeo::all(),
             'channel' => Lookup::list('channel'),
             'vehicle' => Lookup::list('vehicle'),
             'finance_entity' => Lookup::list('finance_entity'),
@@ -30,6 +32,7 @@ class TemplateBuilder
             'pay_methods' => ['كاش', 'تقسيط'],
             'priorities' => ['عادية', 'عالية'],
             'payment_methods' => self::PAYMENT_METHODS,
+            'vehicle_statuses' => array_values(Vehicle::STATUSES),
             'users' => User::where('is_active', true)->orderBy('username')->pluck('username')->all(),
         ];
     }
@@ -76,7 +79,7 @@ class TemplateBuilder
             if (in_array($k, ['phone', 'alt_phone', 'whatsapp', 'nat_id', 'code', 'customer', 'chassis', 'motor'], true)) {
                 $data->getStyle([$i + 1, 2, $i + 1, self::VALIDATION_ROWS])->getNumberFormat()->setFormatCode('@');
             }
-            if (in_array($k, ['first_due_date', 'delivery_date', 'due_date', 'paid_on'], true)) {
+            if (in_array($k, ['first_due_date', 'delivery_date', 'due_date', 'paid_on', 'arrived_at'], true)) {
                 $data->getStyle([$i + 1, 2, $i + 1, self::VALIDATION_ROWS])->getNumberFormat()->setFormatCode('yyyy-mm-dd');
             }
         }
@@ -158,6 +161,10 @@ class TemplateBuilder
         }
         if ($type === 'payments') {
             $lines[] = ['7', 'تُسجَّل الدفعة على آخر صفقة تقسيط للعميل لها رصيد متبقٍ، أو على الصفقة المطابقة للشاسيه إن كتبته.'];
+        }
+        if ($type === 'vehicles') {
+            $lines[] = ['7', 'كل صف = مركبة واحدة. رقم الشاسيه إلزامي ولا يتكرر؛ إذا كان مسجلاً بالفعل يتم تخطيه أو تحديث بياناته حسب اختيارك عند الرفع.'];
+            $lines[] = ['8', 'الحالة اختيارية (الافتراضي: متاحة بالمخزن).'];
         }
         foreach ($lines as $i => [$a, $b]) {
             $ws->setCellValueExplicit([1, $i + 1], (string) $a, DataType::TYPE_STRING);

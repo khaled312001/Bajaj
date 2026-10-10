@@ -18,11 +18,13 @@ class ArabicTypography
         return implode(' ', array_map(function ($word) use ($tatweel) {
             $letters = mb_str_split($word);
             $isArabicLetter = fn ($c) => (bool) preg_match('/^[\x{0621}-\x{064A}]$/u', $c);
+            // letters that never connect to the following letter: a tatweel after them renders as a stray dash
+            $joinsNext = fn ($c) => $isArabicLetter($c) && ! in_array($c, ['ا', 'أ', 'إ', 'آ', 'ء', 'ؤ', 'د', 'ذ', 'ر', 'ز', 'و', 'ة'], true);
             $out = '';
             foreach ($letters as $i => $c) {
                 $out .= $c;
                 $next = $letters[$i + 1] ?? null;
-                if ($next !== null && $isArabicLetter($c) && $isArabicLetter($next)) {
+                if ($next !== null && $joinsNext($c) && $isArabicLetter($next)) {
                     $out .= $tatweel;
                 }
             }

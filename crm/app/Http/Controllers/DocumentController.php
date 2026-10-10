@@ -49,6 +49,11 @@ class DocumentController extends Controller
     {
         $def = $this->def($request, $type);
         [$deal, $customer, $payment] = $this->context($request);
+        $customerDeals = $this->customerDeals($customer);
+        // a customer with exactly one vehicle deal: use it straight away (chassis / motor / model filled in)
+        if (! $deal && $customerDeals->count() === 1 && in_array('chassis', array_column($def['fields'], 0), true)) {
+            $deal = Deal::with('customer')->find($customerDeals->first()->id);
+        }
         $values = array_merge(DocumentService::prefill($deal, $customer, $payment), array_filter($request->only(array_column($def['fields'], 0)), fn ($v) => $v !== null));
         foreach ($def['fields'] as $f) {
             if (! isset($values[$f[0]]) && isset($f[3])) {
@@ -56,7 +61,13 @@ class DocumentController extends Controller
             }
         }
 
-        return view('documents.form', ['type' => $type, 'def' => $def, 'values' => $values, 'deal' => $deal, 'customer' => $customer, 'payment' => $payment, 'log' => null]);
+        return view('documents.form', ['type' => $type, 'def' => $def, 'values' => $values, 'deal' => $deal, 'customer' => $customer, 'payment' => $payment, 'log' => null, 'customerDeals' => $customerDeals]);
+    }
+
+    private function customerDeals(?Customer $customer)
+    {
+        return $customer ? $customer->deals()->with('vehicleUnit:id,deal_id,chassis,motor')->latest('id')->get(['id', 'customer_id', 'vehicle', 'model', 'chassis', 'motor', 'sale_date', 'pay_method'])
+            ->filter(fn ($d) => $d->vehicle || $d->chassis || $d->vehicleUnit)->values() : collect();
     }
 
     public function edit(Request $request, DocumentLog $document)
@@ -64,7 +75,7 @@ class DocumentController extends Controller
         $this->authorizeLog($request, $document);
         $def = $this->def($request, $document->type);
 
-        return view('documents.form', ['type' => $document->type, 'def' => $def, 'values' => $document->data(), 'deal' => $document->deal, 'customer' => $document->customer, 'payment' => null, 'log' => $document]);
+        return view('documents.form', ['type' => $document->type, 'def' => $def, 'values' => $document->data(), 'deal' => $document->deal, 'customer' => $document->customer, 'payment' => null, 'log' => $document, 'customerDeals' => $this->customerDeals($document->customer)]);
     }
 
     public function store(Request $request, string $type)
@@ -124,12 +135,15 @@ class DocumentController extends Controller
         }
 
         $reefy = $document->type === 'finance_receipt' && str_contains((string) ($d['entity'] ?? ''), 'ريفي');
-        $pdf = PdfService::render($reefy ? 'pdf.reefy_receipt' : 'pdf.document', [
+        $traffic = in_array($document->type, ['mobaya', 'renewal', 'clearance'], true);
+        $pdf = PdfService::render($reefy ? 'pdf.reefy_receipt' : ($traffic ? 'pdf.traffic' : 'pdf.document'), [
             'type' => $document->type, 'def' => $def, 'd' => $d, 'deal' => $deal, 'docNo' => $docNo,
-            'docDate' => $document->printed_at->format('Y/m/d'),
-        ], $def['title'] . ' ' . $docNo, false, $def['title'] . ' — ' . $docNo, $reefy ? [
-            'header' => resource_path('pdf/reefy-header.png'), 'footer' => resource_path('pdf/reefy-footer.png'),
-        ] : null);
+            'docDate' => $document->printed_at->format('Y/m/d'), 'zarad' => true,
+        ], $def['title'] . ' ' . $docNo, false, $def['title'] . ' — ' . $docNo, match (true) {
+            $reefy => ['header' => resource_path('pdf/reefy-header.png'), 'footer' => resource_path('pdf/reefy-footer.png')],
+            $traffic => ['paper' => true],
+            default => ['company' => true],
+        });
         Activity::log('document', $document, 'طباعة PDF ' . $docNo);
 
         return PdfService::response($pdf, $def['title'] . '-' . $docNo . '.pdf', ! $request->boolean('download'));

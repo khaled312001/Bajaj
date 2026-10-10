@@ -10,6 +10,8 @@ use App\Models\Followup;
 use App\Models\Import;
 use App\Models\Lookup;
 use App\Models\User;
+use App\Models\Vehicle;
+use App\Models\VehicleBatch;
 use App\Support\Activity;
 use Carbon\Carbon;
 use Illuminate\Support\Arr;
@@ -59,7 +61,7 @@ class ImportService
             foreach ($map as $c => $key) {
                 $cell = $sheet->getCell([$c, $r]);
                 $val = $cell->getValue();
-                if (is_numeric($val) && XlDate::isDateTime($cell) && in_array($key, ['first_due_date', 'delivery_date', 'due_date', 'paid_on'], true)) {
+                if (is_numeric($val) && XlDate::isDateTime($cell) && in_array($key, ['first_due_date', 'delivery_date', 'due_date', 'paid_on', 'arrived_at'], true)) {
                     $val = XlDate::excelToDateTimeObject($val)->format('Y-m-d');
                 } elseif ($val instanceof \Stringable || is_object($val)) {
                     $val = (string) $val;
@@ -102,6 +104,7 @@ class ImportService
                 'customers' => $this->cleanCustomer($row, $lists, $users, $errs),
                 'followups' => $this->cleanFollowup($row, $users, $errs),
                 'payments' => $this->cleanPayment($row, $errs),
+                'vehicles' => $this->cleanVehicle($row, $errs),
             };
             if ($errs) {
                 foreach ($errs as $e) {
@@ -260,6 +263,32 @@ class ImportService
         return $d;
     }
 
+    private function cleanVehicle(array $r, array &$errs): array
+    {
+        $d = ['chassis' => Vehicle::cleanSerial($this->str($r['chassis'] ?? null, 60))];
+        if ($d['chassis'] === '') {
+            $errs[] = 'رقم الشاسيه مطلوب.';
+        }
+        $motor = Vehicle::cleanSerial($this->str($r['motor'] ?? null, 60));
+        $d['motor'] = $motor !== '' ? $motor : null;
+        foreach (['type' => 120, 'model_year' => 10, 'color' => 60, 'source_store' => 120, 'branch_store' => 120, 'notes' => 1000, 'permit_no' => 60, 'sale_order' => 60, 'invoice_no' => 60, 'driver' => 120] as $f => $max) {
+            $d[$f] = $this->str($r[$f] ?? null, $max);
+        }
+        foreach (['cost_price', 'transport_cost', 'other_cost'] as $f) {
+            $d[$f] = $this->num($r[$f] ?? null, $f, $errs);
+        }
+        $d['arrived_at'] = $this->date($r['arrived_at'] ?? null, 'arrived_at', $errs);
+        $d['status'] = null;
+        if ($s = $this->str($r['status'] ?? null)) {
+            $d['status'] = array_key_exists($s, Vehicle::STATUSES) ? $s : (array_search($s, Vehicle::STATUSES, true) ?: null);
+            if (! $d['status']) {
+                $errs[] = "الحالة '{$s}' غير معروفة (متاحة بالمخزن / محجوزة / مباعة).";
+            }
+        }
+
+        return $d;
+    }
+
     /* ------------------------------------------------------------------ commit */
 
     /** @return array{created:int,updated:int,skipped:int,failed:int,errors:array} */
@@ -279,6 +308,7 @@ class ImportService
                         'customers' => $this->commitCustomer($d, $mode, $by, $stats, $seen),
                         'followups' => $this->commitFollowup($d, $by, $stats),
                         'payments' => $this->commitPayment($d, $by, $stats),
+                        'vehicles' => $this->commitVehicle($d, $mode, $by, $stats, $seen),
                     };
                 });
             } catch (\Throwable $e) {
@@ -386,6 +416,56 @@ class ImportService
         $stats['created']++;
     }
 
+    private function commitVehicle(array $d, string $mode, User $by, array &$stats, array &$seen): void
+    {
+        if (isset($seen[$d['chassis']])) {
+            throw new \RuntimeException("رقم الشاسيه {$d['chassis']} مكرر في نفس الملف.");
+        }
+        $seen[$d['chassis']] = true;
+
+        $batchKeys = ['permit_no' => $d['permit_no'], 'sale_order' => $d['sale_order'], 'invoice_no' => $d['invoice_no'], 'driver' => $d['driver']];
+        unset($d['permit_no'], $d['sale_order'], $d['invoice_no'], $d['driver']);
+
+        $existing = Vehicle::withTrashed()->where('chassis', $d['chassis'])->first();
+        if ($existing?->trashed()) {
+            throw new \RuntimeException("رقم الشاسيه {$d['chassis']} مسجل سابقاً لمركبة محذوفة.");
+        }
+        if ($d['motor'] && Vehicle::where('motor', $d['motor'])->where('chassis', '!=', $d['chassis'])->exists()) {
+            throw new \RuntimeException("رقم الموتور {$d['motor']} مسجل لمركبة أخرى.");
+        }
+        if ($existing && $mode !== 'update') {
+            $stats['skipped']++;
+
+            return;
+        }
+
+        // permit columns -> one receiving permit (إذن صرف) per distinct permit / sale-order / invoice number
+        if ($key = $batchKeys['permit_no'] ?? $batchKeys['sale_order'] ?? $batchKeys['invoice_no']) {
+            $seen['__batch'][$key] ??= (VehicleBatch::where('permit_no', $key)->orWhere(fn ($w) => $w->whereNull('permit_no')->where(fn ($x) => $x->where('sale_order', $key)->orWhere('invoice_no', $key)))->value('id')
+                ?? VehicleBatch::create(array_filter($batchKeys) + ['received_at' => $d['arrived_at'] ?? today()->toDateString(), 'source' => $d['source_store'], 'created_by' => $by->id])->id);
+            $d['batch_id'] = $seen['__batch'][$key];
+        }
+
+        if ($existing) {
+            $fill = array_filter($d, fn ($v) => $v !== null && $v !== '');
+            if ($existing->deal_id) {
+                unset($fill['status']);
+            }
+            $existing->fill($fill)->save();
+            $stats['updated']++;
+
+            return;
+        }
+
+        $d['status'] ??= 'in_stock';
+        $d['arrived_at'] ??= today()->toDateString();
+        if ($d['status'] === 'sold') {
+            $d['sold_at'] = $d['arrived_at'];
+        }
+        Vehicle::create(array_filter($d, fn ($v) => $v !== null) + ['created_by' => $by->id]);
+        $stats['created']++;
+    }
+
     public function findCustomer(string $key): ?Customer
     {
         $phone = Customer::normalizePhone($key);
@@ -424,7 +504,11 @@ class ImportService
 
     private function fieldOwner(string $field): string
     {
-        return in_array($field, ['amount', 'paid_on'], true) ? 'payments' : 'customers';
+        return match (true) {
+            in_array($field, ['amount', 'paid_on'], true) => 'payments',
+            in_array($field, ['cost_price', 'transport_cost', 'other_cost', 'arrived_at'], true) => 'vehicles',
+            default => 'customers',
+        };
     }
 
     private function date($v, string $field, array &$errs): ?string

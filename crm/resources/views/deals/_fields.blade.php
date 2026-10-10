@@ -39,7 +39,7 @@
         <div class="field"><label>نسبة الفائدة السنوية %</label><input class="input" type="number" step="0.01" min="0" max="100" name="interest_rate" id="d-rate" value="{{ $v('interest_rate', 0) }}"><div class="hint">لا تُستخدم في نظام الشركة.</div></div>
         <div class="field"><label>طريقة احتساب الفائدة</label><select class="input" name="interest_type" id="d-type"><option value="table" @selected($v('interest_type', 'table') === 'table')>نظام الشركة (جدول النسب)</option><option value="flat" @selected($v('interest_type') === 'flat')>فائدة ثابتة (على أصل المبلغ)</option><option value="reducing" @selected($v('interest_type') === 'reducing')>متناقصة (على الرصيد)</option></select></div>
         <div class="field"><label>القسط الشهري (ج.م)</label><input class="input" type="number" step="0.01" min="0" name="monthly_installment" id="d-monthly" value="{{ $v('monthly_installment') ?: '' }}"><div class="hint">يُحسب تلقائياً (نظام الشركة أو الفائدة). اكتبه يدوياً مع الفائدة الثابتة بنسبة 0.</div></div>
-        <div class="field"><label>مصاريف إدارية (ج.م)</label><input class="input" type="number" step="0.01" min="0" name="admin_fees" id="d-fees" value="{{ $v('admin_fees') ?: '' }}"><div class="hint">نظام الشركة: تُحسب تلقائياً (3% + 500) إن تُركت فارغة.</div></div>
+        <div class="field"><label>مصاريف إدارية (ج.م)</label><input class="input" type="number" step="0.01" min="0" name="admin_fees" id="d-fees" value="{{ $v('admin_fees') ?: '' }}"><div class="hint">تُحسب تلقائياً حسب جهة التقسيط إن تُركت فارغة.</div></div>
         <div class="span-3" style="grid-column:1/-1">
             <div class="card card-pad" id="calc-summary" style="background:var(--blue-50);border-color:var(--blue-100)">
                 <div class="row wrap" style="gap:28px">

@@ -12,7 +12,7 @@
     .co-sub { font-size: 8.5pt; color: #475569; line-height: 1.6; }
     .doc-box { text-align: center; font-size: 9pt; color: #475569; }
     .doc-no { font-size: 11pt; font-weight: bold; color: #1d4ed8; direction: ltr; }
-    .doc-no.boxed { display: inline-block; font-size: 14pt; color: #0b1b3a; border: 0.35mm solid #0b1b3a; padding: 1.5mm 5mm; direction: ltr; }
+    .doc-no.boxed { font-size: 14pt; color: #0b1b3a; border: 0.35mm solid #0b1b3a; padding: 1.5mm 5mm; direction: ltr; }
     h1.title { text-align: center; font-size: 19pt; color: #0b1b3a; margin: 6mm 0 1mm 0; }
     h1.title.doc-title { font-size: 30pt; margin: 8mm 0 2mm 0; }
     .title-line { text-align: center; color: #64748b; font-size: 9pt; margin-bottom: 5mm; }
@@ -23,7 +23,7 @@
     .data tr.alt td { background: #f8fafc; }
     .kv { width: 100%; margin-bottom: 2mm; border-collapse: collapse; }
     .kv td { border: none; padding: 2.2mm 2mm; font-size: 13pt; font-weight: bold; color: #0f172a; }
-    .kv td.k { width: 30%; }
+    .kv td.k { width: 20%; }
     .cards { width: 100%; margin-bottom: 4mm; }
     .cards td { border: 0.3mm solid #c7d2fe; background: #f5f7ff; padding: 3mm; text-align: center; width: 25%; }
     .cards .cl { font-size: 8.5pt; color: #475569; }
@@ -38,22 +38,37 @@
 </style>
 </head>
 <body>
+@if(! empty($zarad))
+{{-- company documents: same identity as the pre-printed ZARAD auto letterhead --}}
+<table style="width:100%;border-bottom:0.6mm solid #2e3192"><tr>
+    <td style="vertical-align:bottom;padding-bottom:2.5mm">
+        <div style="font-size:15pt;font-weight:bold;color:#2e3192">{{ $company['name'] }}</div>
+        <div style="font-size:9pt;color:#2e3192;direction:ltr;text-align:right">{{ $company['name_en'] }}</div>
+        <div style="font-size:8.5pt;color:#334155;margin-top:1mm">@if($company['register'])سجل تجاري : {{ $company['register'] }}@endif @if($company['tax']) &nbsp;|&nbsp; بطاقة ضريبية : {{ $company['tax'] }}@endif</div>
+    </td>
+    <td style="width:58mm;text-align:left;vertical-align:bottom;padding-bottom:2.5mm">
+        <img src="{{ public_path('img/zarad-logo.png') }}" style="width:50mm">
+        <div style="font-size:9.5pt;color:#334155;margin-top:1.5mm">التاريخ: {{ $docDate ?? now()->format('Y/m/d') }}</div>
+    </td>
+</tr></table>
+@else
 <table class="hd"><tr>
     <td style="width:30mm"><table><tr><td class="logo"><img src="{{ $logo }}" style="width:24mm"></td></tr></table></td>
     <td style="padding-right:4mm">
         <div class="co-name">{{ $company['name'] }}</div>
         <div class="co-sub">
             @if($company['address']){{ $company['address'] }}<br>@endif
-            @if($company['phone'])هاتف: <span dir="ltr">{{ $company['phone'] }}</span>@endif
+            @if($company['phone'])هاتف: {{ $company['phone'] }}@endif
             @if($company['register']) &nbsp;|&nbsp; س.ت: {{ $company['register'] }}@endif
             @if($company['tax']) &nbsp;|&nbsp; بطاقة ضريبية: {{ $company['tax'] }}@endif
         </div>
     </td>
     <td class="doc-box" style="width:42mm">
-        @isset($docNo)<div class="doc-no boxed">{{ $docNo }}</div>@endisset
-        <div style="margin-top:1.5mm">التاريخ: {{ $docDate ?? now()->format('Y/m/d') }}</div>
+        @isset($docNo)<table style="margin:0 auto"><tr><td class="doc-no boxed">{{ $docNo }}</td></tr></table>@endisset
+        <div style="margin-top:2.5mm">التاريخ: {{ $docDate ?? now()->format('Y/m/d') }}</div>
     </td>
 </tr></table>
+@endif
 @yield('body')
 </body>
 </html>

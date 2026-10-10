@@ -86,4 +86,41 @@
     </div>
 @endforeach
 </div>
+
+<div class="card mt" id="geo">
+    <div class="card-head"><h3><i class="fa-solid fa-map-location-dot"></i> المحافظات والمراكز</h3><span class="badge gray">{{ count($geo) }} محافظة</span></div>
+    <div class="card-body">
+        @error('geo')<div class="alert alert-error mb"><i class="fa-solid fa-circle-xmark"></i><div>{{ $message }}</div></div>@enderror
+        <div class="hint mb">هذه القائمة تظهر في كل خانات «المحافظة» و«المركز» بالنظام ونموذج الطلب العام. اضغط على المحافظة لعرض مراكزها وإضافة أو حذف مركز.</div>
+        <form method="POST" action="{{ route('settings.geo') }}" class="row mb" style="max-width:460px">
+            @csrf <input type="hidden" name="action" value="add_gov">
+            <input class="input" name="gov" placeholder="إضافة محافظة جديدة..." required maxlength="100"><button class="btn btn-primary"><i class="fa-solid fa-plus"></i> إضافة محافظة</button>
+        </form>
+        <div class="grid g3">
+        @foreach($geo as $gov => $centers)
+            <details class="card" style="box-shadow:none;border:1px solid var(--line-2)" @if(session('geo_open') === $gov) open @endif>
+                <summary class="card-pad row" style="cursor:pointer"><b class="grow">{{ $gov }}</b><span class="badge blue">{{ count($centers) }} مركز</span></summary>
+                <div class="card-pad" style="border-top:1px solid var(--line-2)">
+                    <div class="row wrap mb" style="gap:6px">
+                        @forelse($centers as $c)
+                            <form method="POST" action="{{ route('settings.geo') }}" data-confirm="حذف مركز '{{ $c }}' من {{ $gov }}؟" style="display:inline">
+                                @csrf <input type="hidden" name="action" value="del_center"><input type="hidden" name="gov" value="{{ $gov }}"><input type="hidden" name="center" value="{{ $c }}">
+                                <span class="badge gray" style="gap:6px">{{ $c }} <button class="btn-link" title="حذف" style="border:0;background:none;cursor:pointer;color:var(--red-600,#dc2626);padding:0"><i class="fa-solid fa-xmark"></i></button></span>
+                            </form>
+                        @empty<span class="muted small">لا توجد مراكز</span>@endforelse
+                    </div>
+                    <form method="POST" action="{{ route('settings.geo') }}" class="row mb">
+                        @csrf <input type="hidden" name="action" value="add_center"><input type="hidden" name="gov" value="{{ $gov }}">
+                        <input class="input" name="center" placeholder="إضافة مركز..." required maxlength="120"><button class="btn btn-primary btn-icon" title="إضافة"><i class="fa-solid fa-plus"></i></button>
+                    </form>
+                    <form method="POST" action="{{ route('settings.geo') }}" data-confirm="حذف محافظة {{ $gov }} وكل مراكزها من القوائم؟ (بيانات العملاء المسجلة لا تتأثر)">
+                        @csrf <input type="hidden" name="action" value="del_gov"><input type="hidden" name="gov" value="{{ $gov }}">
+                        <button class="btn btn-xs btn-danger-soft"><i class="fa-solid fa-trash"></i> حذف المحافظة</button>
+                    </form>
+                </div>
+            </details>
+        @endforeach
+        </div>
+    </div>
+</div>
 @endsection

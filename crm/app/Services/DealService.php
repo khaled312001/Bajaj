@@ -77,6 +77,7 @@ class DealService
                     ]);
                     $schedule = $calc['schedule'];
                     $deal->monthly_installment = $calc['monthly'];
+                    $deal->admin_fees = (float) $calc['fees'];
                 }
                 if (! $deal->first_due_date && $schedule) {
                     $deal->first_due_date = $schedule[0]['due_date'];
