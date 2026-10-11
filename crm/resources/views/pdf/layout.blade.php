@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <style>
-    body { font-family: tajawal; font-size: 11pt; color: #0f172a; direction: rtl; }
-    .serif { font-family: tajawal; }
+    body { font-family: {{ ! empty($zarad) ? \App\Services\PdfService::docFont() : 'tajawal' }}; font-size: 11pt; color: #0f172a; direction: rtl; }
+    .serif { font-family: {{ ! empty($zarad) ? \App\Services\PdfService::docFont() : 'tajawal' }}; }
     table { border-collapse: collapse; }
     .hd { width: 100%; border-bottom: 0.8mm solid #1d4ed8; }
     .hd td { vertical-align: middle; padding: 0 0 3mm 0; }

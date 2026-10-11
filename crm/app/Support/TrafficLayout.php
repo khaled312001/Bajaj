@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Services\PdfService;
 use Carbon\Carbon;
 
 /**
@@ -11,12 +12,17 @@ use Carbon\Carbon;
  */
 class TrafficLayout
 {
-    /** The originals use Arial Bold; XB Riyaz (bundled with mPDF) has the same look and Latin metrics. */
-    public const FONT = 'xbriyaz';
-
-    /** XB Riyaz sets Arabic a little wider than Arial: shrink Arabic text (and the stretched title) to the same widths. */
+    /**
+     * The originals use Arial Bold, which prints at the measured sizes as is. The fallback XB Riyaz has the same
+     * look and Latin metrics but sets Arabic a little wider: shrink Arabic text (and the stretched title) to fit.
+     */
     private const ARABIC_SCALE = 0.865;
     private const TITLE_SCALE = ['mobaya' => 0.955, 'retain' => 0.955, 'renewal' => 0.846, 'clearance' => 0.90];
+
+    public static function font(): string
+    {
+        return PdfService::docFont();
+    }
 
     private const GEO = [
         // طباعة مبايعة.pdf + خطاب تجديد.pdf (identical grid)
@@ -136,15 +142,18 @@ class TrafficLayout
         $left($a['open'], $a['y'], '(', 0, true);
 
         $title = self::TITLES[$variant];
+        $arial = self::font() === 'arial';
 
-        return array_map(function ($it) use ($title, $variant) {
+        return array_map(function ($it) use ($title, $variant, $arial) {
             $size = $it[4] * match (true) {
+                $arial => 1.0,
                 $it[5] === $title => self::TITLE_SCALE[$variant],
                 (bool) preg_match('/\p{Arabic}/u', $it[5]) => self::ARABIC_SCALE,
                 default => 1.0,
             };
 
-            return [$it[0], $it[1], $it[2], $it[3], round($size, 2), $it[5], $it[6]];
+            // Arial's line box starts ~0.022 mm per pt above the glyph box the originals were measured by
+            return [$arial ? round($it[0] + 0.022 * $size, 2) : $it[0], $it[1], $it[2], $it[3], round($size, 2), $it[5], $it[6]];
         }, array_values(array_filter($items, fn ($it) => $it[5] !== '')));
     }
 

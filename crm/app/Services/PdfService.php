@@ -34,6 +34,18 @@ class PdfService
         ];
     }
 
+    /**
+     * Font of the printed documents: Arial like the company's originals. Arial's licence forbids committing it
+     * to the (public) repository, so storage/fonts/arial*.ttf is copied onto each server by hand; without it
+     * the closest bundled face (XB Riyaz) is used.
+     */
+    public static function docFont(): string
+    {
+        static $font;
+
+        return $font ??= is_file(storage_path('fonts/arial.ttf')) && is_file(storage_path('fonts/arialbd.ttf')) ? 'arial' : 'xbriyaz';
+    }
+
     /** Render a Blade view (inside pdf.layout) to a PDF string. */
     public static function render(string $view, array $data, string $title, bool $landscape = false, ?string $footerNote = null, ?array $letterhead = null): string
     {
@@ -64,7 +76,9 @@ class PdfService
                 'fontDir' => array_merge($defaults['fontDir'], [storage_path('fonts')]),
                 'fontdata' => $fonts['fontdata'] + [
                     'tajawal' => ['R' => 'Tajawal-Regular.ttf', 'B' => 'Tajawal-Bold.ttf', 'useOTL' => 0xFF],
-                ],
+                ] + (self::docFont() === 'arial' ? [
+                    'arial' => ['R' => 'arial.ttf', 'B' => 'arialbd.ttf', 'useOTL' => 0xFF, 'useKashida' => 75],
+                ] : []),
                 'default_font' => 'tajawal', 'default_font_size' => 11,
                 'autoScriptToLang' => true, 'autoLangToFont' => false,
             ]);

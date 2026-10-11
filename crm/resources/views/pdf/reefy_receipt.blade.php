@@ -2,7 +2,7 @@
 <head>
 <meta charset="utf-8">
 <style>
-    body { font-family: tajawal; font-size: 13.5pt; color: #000; direction: rtl; }
+    body { font-family: {{ \App\Services\PdfService::docFont() }}; font-size: 13.5pt; color: #000; direction: rtl; }
     p { line-height: 1.75; margin: 0 0 3.2mm 0; text-align: right; }
     h1 { text-align: center; font-size: 18pt; font-weight: bold; text-decoration: underline; margin: 6mm 0 8mm 0; }
     .gap { margin-top: 5mm; }

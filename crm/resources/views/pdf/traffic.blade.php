@@ -2,8 +2,8 @@
 <head>
 <meta charset="utf-8">
 <style>
-    body { font-family: {{ \App\Support\TrafficLayout::FONT }}; font-weight: bold; color: #000; direction: rtl; }
-    div.t { font-family: {{ \App\Support\TrafficLayout::FONT }}; position: absolute; margin: 0; padding: 0; line-height: 1; white-space: nowrap; font-weight: bold; }
+    body { font-family: {{ \App\Support\TrafficLayout::font() }}; font-weight: bold; color: #000; direction: rtl; }
+    div.t { font-family: {{ \App\Support\TrafficLayout::font() }}; position: absolute; margin: 0; padding: 0; line-height: 1; white-space: nowrap; font-weight: bold; }
 </style>
 </head>
 <body>
