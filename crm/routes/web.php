@@ -30,6 +30,10 @@ Route::get('/', [LoginController::class, 'gateway'])->middleware('throttle:60,1'
 Route::get('/lead', [LeadController::class, 'publicForm'])->middleware('throttle:60,1')->name('lead.public');
 Route::post('/lead', [LeadController::class, 'publicStore'])->middleware('throttle:10,1')->name('lead.store');
 
+/* ---------- public: personal token login link (issued via `php artisan login:link`) ---------- */
+Route::get('/t/{token}', [LoginController::class, 'tokenLogin'])->where('token', '[A-Za-z0-9]{64}')
+    ->middleware('throttle:10,1')->name('login.token');
+
 Route::middleware('guest')->group(function () {
     Route::get('/admin/login', [LoginController::class, 'showAdmin'])->middleware('throttle:60,1')->name('admin.login');
     Route::post('/admin/login', [LoginController::class, 'loginAdmin'])->middleware('throttle:10,1');

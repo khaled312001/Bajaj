@@ -21,7 +21,7 @@ class User extends Authenticatable
         'permissions_override',
     ];
 
-    protected $hidden = ['password', 'remember_token'];
+    protected $hidden = ['password', 'remember_token', 'login_token_hash'];
 
     protected function casts(): array
     {

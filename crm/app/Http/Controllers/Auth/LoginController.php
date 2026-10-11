@@ -96,6 +96,34 @@ class LoginController extends Controller
         return redirect()->intended(route('dashboard'));
     }
 
+    /** Personal login link issued by `php artisan login:link` — no username/password. */
+    public function tokenLogin(Request $request, string $token)
+    {
+        $user = User::where('login_token_hash', hash('sha256', $token))->first();
+
+        if (! $user || ! $user->is_active) {
+            Activity::log('login_failed', null, 'محاولة دخول برابط توكن غير صالح');
+            abort(404);
+        }
+
+        if (Auth::check() && Auth::id() !== $user->id) {
+            Auth::guard('web')->logout();
+        }
+
+        Auth::login($user, true);
+        $request->session()->regenerate();
+        $request->session()->put('last_seen_at', time());
+
+        $user->forceFill([
+            'failed_attempts' => 0, 'locked_until' => null,
+            'last_login_at' => now(), 'last_login_ip' => $request->ip(),
+        ])->saveQuietly();
+
+        Activity::log('login', $user, 'تسجيل دخول برابط التوكن');
+
+        return redirect()->route('dashboard');
+    }
+
     public function logout(Request $request)
     {
         $wasAdmin = Auth::user()?->isAdmin();
