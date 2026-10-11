@@ -5,14 +5,16 @@
     $money = fn ($x) => number_format((float) $x, 2);
     $co = $company['name'];
     $date = fn ($k) => ! empty($d[$k]) ? \Illuminate\Support\Carbon::parse($d[$k])->format('Y/m/d') : '................';
-    $sign = function ($label) { return '<table class="sign"><tr><td><div class="line">&nbsp;</div>' . $label . '</td></tr></table>'; };
+    // a single signature sits on the left side of the page
+    $sign = function ($label) { return '<table class="sign"><tr><td style="width:58%"></td><td><div class="line">&nbsp;</div>' . $label . '</td></tr></table>'; };
+    $gap = $gap ?? 1;
     // an empty amount prints as a blank to fill by hand, never as "0 جنيه / صفر جنيه"
     $amt = fn ($k, $dec = 0) => (float) ($d[$k] ?? 0) > 0 ? number_format((float) $d[$k], $dec) : '................';
     $words = fn ($k) => (float) ($d[$k] ?? 0) > 0 ? \App\Services\DocumentService::words($d[$k]) : '';
     // signature block of the company's acknowledgment forms: employee who delivered | the person acknowledging
-    $ack = function ($name) use ($v, $d, $docDate) {
-        $col = fn (array $lines) => '<table style="width:100%">' . implode('', array_map(fn ($t) => '<tr><td style="padding:2mm 0;font-size:12pt;font-weight:bold">' . $t . '</td></tr>', $lines)) . '</table>';
-        return '<table style="width:100%;margin-top:8mm"><tr><td style="width:50%;vertical-align:top">'
+    $ack = function ($name) use ($v, $d, $docDate, $gap) {
+        $col = fn (array $lines) => '<table style="width:100%">' . implode('', array_map(fn ($t) => '<tr><td style="padding:' . (2 * $gap) . 'mm 0;font-size:12pt;font-weight:bold">' . $t . '</td></tr>', $lines)) . '</table>';
+        return '<table style="width:100%;margin-top:' . (8 * $gap) . 'mm"><tr><td style="width:50%;vertical-align:top">'
             . $col(['تم التسليم بمعرفة :', 'الاسم : ' . e($v('delivered_by')), 'التوقيع : ................'])
             . '</td><td style="vertical-align:top">'
             . $col(array_merge(['وهذا إقرار مني بذلك', 'المستلم : ' . e($name)], ! empty($d['phone']) ? ['الموبايل : ' . e($d['phone'])] : [],
@@ -153,7 +155,7 @@
     <p class="text serif">تحية طيبة وبعد..<br>السادة / <b>{{ $v('to_company') }}</b></p>
     <p class="text serif">نفوض نحن / <b>{{ $co }}</b><br>السيد / <b>{{ $v('delegate_name') }}</b> — رقم قومي: {{ $v('delegate_nat') }}<br>وذلك لاستلام البضاعة: {{ $v('goods') }}.</p>
     <p class="text serif">وهذا تفويض منا ساري حتى يوم <b>{{ $date('valid_until') }}</b>.</p>
-    <table class="sign"><tr><td><div class="line">&nbsp;</div>المدير المسؤول{{ $company['manager'] ? ': ' . $company['manager'] : '' }}</td></tr></table>
+    {!! $sign('المدير المسؤول' . ($company['manager'] ? ': ' . e($company['manager']) : '')) !!}
 @break
 
 @endswitch

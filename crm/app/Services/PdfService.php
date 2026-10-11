@@ -44,58 +44,73 @@ class PdfService
             @mkdir($tmp, 0775, true);
         }
 
-        // 'paper': printed on the company's pre-printed ZARAD letterhead sheet -> keep clear of its top band,
-        // bottom band and the logo column on the left edge (margins are swapped by mPDF in RTL: left = physical right)
+        // 'paper': printed on the company's pre-printed ZARAD letterhead sheet; the view places every line
+        // absolutely (mm from the page corner) exactly like the traffic-approved originals, so no margins
         $paper = ($letterhead['paper'] ?? false) === true;
         $companyDoc = ($letterhead['company'] ?? false) === true;
         $margins = match (true) {
-            $paper => ['l' => 16, 'r' => 33, 't' => 47, 'b' => 41],
+            $paper => ['l' => 0, 'r' => 0, 't' => 0, 'b' => 0],
             $companyDoc => ['l' => 14, 'r' => 14, 't' => 12, 'b' => 26],
             (bool) $letterhead => ['l' => 18, 'r' => 18, 't' => 36, 'b' => 34],
             default => ['l' => 14, 'r' => 14, 't' => 14, 'b' => 18],
         };
-        $mpdf = new Mpdf([
-            'mode' => 'utf-8', 'format' => $landscape ? 'A4-L' : 'A4',
-            'margin_left' => $margins['l'], 'margin_right' => $margins['r'],
-            'margin_top' => $margins['t'], 'margin_bottom' => $margins['b'],
-            'margin_header' => 0, 'margin_footer' => $letterhead && ! $companyDoc ? 0 : 7,
-            'tempDir' => $tmp,
-            'fontDir' => array_merge($defaults['fontDir'], [storage_path('fonts')]),
-            'fontdata' => $fonts['fontdata'] + [
-                'tajawal' => ['R' => 'Tajawal-Regular.ttf', 'B' => 'Tajawal-Bold.ttf', 'useOTL' => 0xFF],
-            ],
-            'default_font' => 'tajawal', 'default_font_size' => 11,
-            'autoScriptToLang' => true, 'autoLangToFont' => false,
-        ]);
-        $mpdf->SetDirectionality('rtl');
-        if (count($data['r']['rows'] ?? []) > 250) {
-            $mpdf->simpleTables = true; // thousands of cells: skip collapsed-border calculations
-        }
-        $mpdf->SetTitle($title);
-        $mpdf->SetAuthor((string) Settings::get('app_name', 'Bajaj CRM'));
-        $mpdf->SetCreator('Bajaj CRM');
+        $make = function () use ($landscape, $margins, $letterhead, $companyDoc, $tmp, $defaults, $fonts, $data, $title) {
+            $mpdf = new Mpdf([
+                'mode' => 'utf-8', 'format' => $landscape ? 'A4-L' : 'A4',
+                'margin_left' => $margins['l'], 'margin_right' => $margins['r'],
+                'margin_top' => $margins['t'], 'margin_bottom' => $margins['b'],
+                'margin_header' => 0, 'margin_footer' => $letterhead && ! $companyDoc ? 0 : 7,
+                'tempDir' => $tmp,
+                'fontDir' => array_merge($defaults['fontDir'], [storage_path('fonts')]),
+                'fontdata' => $fonts['fontdata'] + [
+                    'tajawal' => ['R' => 'Tajawal-Regular.ttf', 'B' => 'Tajawal-Bold.ttf', 'useOTL' => 0xFF],
+                ],
+                'default_font' => 'tajawal', 'default_font_size' => 11,
+                'autoScriptToLang' => true, 'autoLangToFont' => false,
+            ]);
+            $mpdf->SetDirectionality('rtl');
+            if (count($data['r']['rows'] ?? []) > 250) {
+                $mpdf->simpleTables = true; // thousands of cells: skip collapsed-border calculations
+            }
+            $mpdf->SetTitle($title);
+            $mpdf->SetAuthor((string) Settings::get('app_name', 'Bajaj CRM'));
+            $mpdf->SetCreator('Bajaj CRM');
 
-        $html = View::make($view, $data + ['company' => self::company(), 'title' => $title, 'logo' => public_path('img/logo.jpg')])->render();
+            return $mpdf;
+        };
+        $html = fn (float $gap = 1.0) => View::make($view, $data + ['company' => self::company(), 'title' => $title, 'logo' => public_path('img/logo.jpg'), 'gap' => $gap])->render();
         if ($paper) {
-            $mpdf->WriteHTML($html);
+            $mpdf = $make();
+            $mpdf->WriteHTML($html());
 
             return $mpdf->Output('', 'S');
         }
         if ($companyDoc) {
             $c = self::company();
-            $mpdf->SetHTMLFooter('<table width="100%" style="font-size:9pt;font-weight:bold;color:#2e3192;border-top:0.5mm solid #2e3192"><tr>'
+            $footer = '<table width="100%" style="font-size:9pt;font-weight:bold;color:#2e3192;border-top:0.5mm solid #2e3192"><tr>'
                 . '<td width="58%" style="padding-top:1.5mm">' . ($c['address'] ? 'العنوان : ' . e($c['address']) : '') . ($c['phone'] ? '<br>الهاتف : ' . e($c['phone']) : '') . '</td>'
                 . '<td style="padding-top:1.5mm">' . ($c['register'] ? 'رقم السجل التجاري : ' . e($c['register']) : '') . ($c['tax'] ? '<br>رقم البطاقة الضريبية : ' . e($c['tax']) : '') . '</td>'
-                . '<td width="12%" align="left" style="font-size:7.5pt;color:#94a3b8;font-weight:normal">{PAGENO} / {nbpg}</td></tr></table>');
-            $mpdf->WriteHTML($html);
+                . '<td width="12%" align="left" style="font-size:7.5pt;color:#94a3b8;font-weight:normal">{PAGENO} / {nbpg}</td></tr></table>';
+            // each pass keeps only its numbers and output, so a single mPDF instance is alive at a time
+            $build = function (float $gap) use ($make, $html, $footer) {
+                $m = $make();
+                $m->SetHTMLFooter($footer);
+                $m->WriteHTML($html($gap));
+                $pass = ['page' => $m->page, 'y' => $m->y, 'pdf' => $m->Output('', 'S')];
+                unset($m);
+                gc_collect_cycles();
 
-            return $mpdf->Output('', 'S');
+                return $pass;
+            };
+
+            return self::fillPage($build, ($landscape ? 210 : 297) - $margins['b'] - 3);
         }
+        $mpdf = $make();
         if ($letterhead) {
             // pre-printed company letterhead (image header + footer), replaces the standard header / footer
             $mpdf->SetHTMLHeader('<div style="position:absolute;left:0;top:0"><img src="' . $letterhead['header'] . '" style="width:210mm;height:28mm"></div>');
             $mpdf->SetHTMLFooter('<div style="position:absolute;left:0;bottom:0"><img src="' . $letterhead['footer'] . '" style="width:210mm;height:26.4mm"></div>');
-            $mpdf->WriteHTML($html);
+            $mpdf->WriteHTML($html());
 
             return $mpdf->Output('', 'S');
         }
@@ -103,9 +118,36 @@ class PdfService
             . '<td width="40%" align="right">' . e($footerNote ?? $title) . '</td>'
             . '<td width="30%" align="center">صفحة {PAGENO} من {nbpg}</td>'
             . '<td width="30%" align="left" dir="ltr">' . now()->format('Y/m/d H:i') . '</td></tr></table>');
-        $mpdf->WriteHTML($html);
+        $mpdf->WriteHTML($html());
 
         return $mpdf->Output('', 'S');
+    }
+
+    /**
+     * One-page company documents: stretch the vertical spacing (the view's $gap) so the content runs down to
+     * the footer instead of leaving the bottom of the sheet empty. Spacing grows linearly with $gap, so two
+     * measurements give the target; it is then checked (and backed off) to stay on a single page.
+     */
+    private static function fillPage(\Closure $build, float $limit): string
+    {
+        $base = $build(1.0);
+        if ($base['page'] !== 1) {
+            return $base['pdf'];
+        }
+        $probe = $build(1.5);
+        $perUnit = ($probe['y'] - $base['y']) / 0.5;
+        if ($probe['page'] !== 1 || $perUnit <= 0.5) {
+            return $base['pdf'];
+        }
+        $gap = min(4.0, 1 + ($limit - $base['y']) / $perUnit);
+        for ($i = 0; $i < 4 && $gap > 1.0; $i++, $gap = 1 + ($gap - 1) * 0.9) {
+            $pass = $build($gap);
+            if ($pass['page'] === 1 && $pass['y'] <= $limit + 0.5) {
+                return $pass['pdf'];
+            }
+        }
+
+        return $base['pdf'];
     }
 
     public static function response(string $pdf, string $filename, bool $inline = true)
