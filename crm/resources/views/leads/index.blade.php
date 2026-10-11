@@ -22,17 +22,19 @@
     </div>
 </form>
 
-<form method="POST" action="{{ route('leads.assign') }}" id="assign-form">
-    @csrf
+{{-- the bulk forms stay empty and outside the table (no nested forms); the checked ids are added on submit --}}
+<form method="POST" action="{{ route('leads.assign') }}" id="assign-form">@csrf</form>
+<form method="POST" action="{{ route('leads.destroy') }}" id="delete-form">@csrf</form>
     <div class="card">
         <div class="card-head row between wrap" style="gap:10px">
             <h3><i class="fa-solid fa-inbox"></i> الطلبات ({{ $leads->total() }})</h3>
-            <div class="row" style="gap:8px">
-                <select class="input" name="assigned_to" style="width:auto" required>
+            <div class="row wrap" style="gap:8px">
+                <select class="input" name="assigned_to" form="assign-form" style="width:auto">
                     <option value="">تعيين إلى موظف...</option>
                     @foreach($staff as $u)<option value="{{ $u->id }}">{{ $u->name }}</option>@endforeach
                 </select>
-                <button class="btn btn-sm btn-primary" type="submit" data-confirm="تعيين الطلبات المحددة؟"><i class="fa-solid fa-user-check"></i> تعيين المحدد</button>
+                <button class="btn btn-sm btn-primary" type="button" data-bulk="assign-form"><i class="fa-solid fa-user-check"></i> تعيين وتحويل المحدد</button>
+                <button class="btn btn-sm btn-danger-soft" type="button" data-bulk="delete-form"><i class="fa-solid fa-trash"></i> حذف المحدد</button>
             </div>
         </div>
         <div class="table-wrap"><table class="tbl">
@@ -40,7 +42,7 @@
             <tbody>
             @forelse($leads as $l)
                 <tr>
-                    <td>@if($l->status !== 'converted')<input class="lead-chk" type="checkbox" name="ids[]" value="{{ $l->id }}" form="assign-form">@endif</td>
+                    <td><input class="lead-chk" type="checkbox" value="{{ $l->id }}" data-converted="{{ $l->status === 'converted' ? 1 : 0 }}"></td>
                     <td><b>{{ $l->name }}</b></td>
                     <td class="num">{{ $l->phone }}</td>
                     <td>{{ $l->vehicle ?: '—' }}</td>
@@ -63,6 +65,23 @@
             </tbody>
         </table></div>
     </div>
-</form>
 <div class="mt">{{ $leads->links() }}</div>
+<script>
+document.querySelectorAll('[data-bulk]').forEach(btn => btn.addEventListener('click', () => {
+    const form = document.getElementById(btn.dataset.bulk);
+    const del = form.id === 'delete-form';
+    let checked = [...document.querySelectorAll('.lead-chk:checked')];
+    if (!del) checked = checked.filter(c => c.dataset.converted !== '1');
+    if (!checked.length) { alert(del ? 'حدد الطلبات اللي عايز تحذفها.' : 'حدد طلبات لسه متحولتش.'); return; }
+    if (!del) {
+        const sel = document.querySelector('[name=assigned_to]');
+        if (!sel.value) { alert('اختار الموظف الأول.'); sel.focus(); return; }
+        if (!confirm('تحويل ' + checked.length + ' طلب لعملاء عند ' + sel.selectedOptions[0].text + '؟')) return;
+    } else if (!confirm('حذف ' + checked.length + ' طلب نهائياً؟ (العملاء اللي اتعملوا منهم مش هيتمسحوا)')) return;
+    form.querySelectorAll('input[name="ids[]"]').forEach(i => i.remove());
+    checked.forEach(c => { const i = document.createElement('input'); i.type = 'hidden'; i.name = 'ids[]'; i.value = c.value; form.appendChild(i); });
+    btn.disabled = true;
+    form.submit();
+}));
+</script>
 @endsection

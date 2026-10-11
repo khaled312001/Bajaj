@@ -179,6 +179,7 @@ Route::middleware(['auth', 'guard.app'])->group(function () {
 
         Route::get('/leads', [LeadController::class, 'index'])->name('leads.index');
         Route::post('/leads/assign', [LeadController::class, 'assign'])->name('leads.assign');
+        Route::post('/leads/delete', [LeadController::class, 'destroy'])->name('leads.destroy');
         Route::post('/leads/{lead}/reject', [LeadController::class, 'reject'])->name('leads.reject');
 
         Route::get('/reassignment-requests', [ReassignmentRequestController::class, 'index'])->name('reassignments.index');

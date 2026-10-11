@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Support\Activity;
 use App\Support\Settings;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class LeadController extends Controller
@@ -65,19 +66,65 @@ class LeadController extends Controller
         ]);
     }
 
-    /** Admin: assign a batch of selected leads to one sales employee at once. */
+    /**
+     * Admin: assign the selected leads to one sales employee — each becomes a customer owned by that employee
+     * right away (shows in their customers). A phone that already belongs to a customer is linked, not duplicated.
+     */
     public function assign(Request $request)
     {
         $data = $request->validate([
             'ids' => ['required', 'array', 'min:1'],
             'ids.*' => ['integer', 'exists:leads,id'],
             'assigned_to' => ['required', Rule::exists('users', 'id')->whereNull('deleted_at')],
-        ]);
+        ], ['ids.required' => 'حدد طلب واحد على الأقل.', 'assigned_to.required' => 'اختار الموظف.']);
         $employee = User::findOrFail($data['assigned_to']);
-        $count = Lead::whereIn('id', $data['ids'])->update(['assigned_to' => $employee->id, 'status' => 'assigned']);
-        Activity::log('lead.assign', null, "تعيين {$count} من الليدز إلى {$employee->name}");
+        $admin = $request->user();
+        $created = 0;
+        $existing = [];
 
-        return back()->with('success', "تم تعيين {$count} طلب إلى {$employee->name}.");
+        foreach (Lead::whereIn('id', $data['ids'])->where('status', '!=', 'converted')->get() as $lead) {
+            DB::transaction(function () use ($lead, $employee, $admin, &$created, &$existing) {
+                $customer = Customer::where(fn ($w) => $w->where('phone', $lead->phone)->orWhere('alt_phone', $lead->phone)->orWhere('whatsapp', $lead->phone))->first();
+                if ($customer) {
+                    $existing[] = $lead->name . ' (كود ' . $customer->code . ')';
+                } else {
+                    $customer = Customer::create([
+                        'name' => $lead->name, 'phone' => $lead->phone, 'interest' => $lead->vehicle,
+                        'governorate' => $lead->governorate, 'district' => $lead->district, 'address' => $lead->address,
+                        'status' => 'مفتوحة', 'notes' => 'من طلبات النموذج العام بتاريخ ' . $lead->created_at->format('Y/m/d'),
+                        'created_by' => $admin->id, 'assigned_to' => $employee->id,
+                    ]);
+                    if ($customer->interest) {
+                        $customer->vehicles()->create(['vehicle' => $customer->interest, 'created_by' => $admin->id]);
+                    }
+                    Activity::log('customer.create', $customer, 'إضافة العميل ' . $customer->name . ' من الليدز');
+                    Activity::customer($customer, 'created', "تم إدخال العميل من طلبات النموذج العام وتعيينه إلى {$employee->name} بواسطة {$admin->name}");
+                    $created++;
+                }
+                $lead->update(['status' => 'converted', 'assigned_to' => $employee->id, 'customer_id' => $customer->id, 'converted_at' => now()]);
+            });
+        }
+        Activity::log('lead.assign', null, "تحويل {$created} من الليدز لعملاء عند {$employee->name}");
+
+        $msg = "تم تحويل {$created} طلب لعملاء عند {$employee->name} وظهروا في عملائه.";
+        if ($existing) {
+            $msg .= ' وفيه ' . count($existing) . ' رقمهم مسجل قبل كده كعميل فاتربطوا بيه من غير تكرار: ' . implode('، ', $existing) . '.';
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    /** Admin: delete the selected leads (the customers made from them stay). */
+    public function destroy(Request $request)
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+        ], ['ids.required' => 'حدد طلب واحد على الأقل.']);
+        $count = Lead::whereIn('id', $data['ids'])->delete();
+        Activity::log('lead.delete', null, "حذف {$count} من الليدز");
+
+        return back()->with('success', "تم حذف {$count} طلب.");
     }
 
     /** Open the "new customer" form prefilled from a lead; marks it converted once the customer is saved. */

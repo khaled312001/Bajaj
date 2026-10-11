@@ -233,19 +233,34 @@ class ExtraFeaturesTest extends TestCase
         $this->actingAs($this->agent)->get('/leads')->assertForbidden();
         $this->actingAs($this->agent)->get("/leads/{$lead->id}/convert")->assertForbidden();
 
-        // admin bulk-assigns it to the agent
+        // the admin can still open the prefilled "new customer" form for a single lead
+        $this->actingAs($this->admin)->get("/leads/{$lead->id}/convert")
+            ->assertRedirect(route('customers.create', ['phone' => $lead->phone, 'name' => $lead->name, 'interest' => $lead->vehicle, 'governorate' => $lead->governorate, 'district' => $lead->district, 'address' => null, 'lead_id' => $lead->id]));
+
+        // admin bulk-assigns it to the agent: it becomes the agent's customer immediately
+        $this->actingAs($this->admin)->get('/leads')->assertOk()->assertSee('حذف المحدد');
         $this->actingAs($this->admin)->post('/leads/assign', ['ids' => [$lead->id], 'assigned_to' => $this->agent->id])->assertRedirect();
         $lead->refresh();
-        $this->assertSame('assigned', $lead->status);
-        $this->assertSame($this->agent->id, $lead->assigned_to);
-
-        // the assigned agent converts it into a real customer
-        $this->actingAs($this->agent)->get("/leads/{$lead->id}/convert")
-            ->assertRedirect(route('customers.create', ['phone' => $lead->phone, 'name' => $lead->name, 'interest' => $lead->vehicle, 'governorate' => $lead->governorate, 'district' => $lead->district, 'address' => null, 'lead_id' => $lead->id]));
-        $this->actingAs($this->agent)->post('/customers', ['name' => $lead->name, 'phone' => $lead->phone, 'interest' => $lead->vehicle, 'status' => 'مفتوحة', 'lead_id' => $lead->id])->assertRedirect();
-        $lead->refresh();
         $this->assertSame('converted', $lead->status);
-        $this->assertNotNull($lead->customer_id);
+        $this->assertSame($this->agent->id, $lead->assigned_to);
+        $customer = Customer::findOrFail($lead->customer_id);
+        $this->assertSame('01033334444', $customer->phone);
+        $this->assertSame($this->agent->id, $customer->assigned_to);
+        $this->assertSame('Qute', $customer->interest);
+        $this->actingAs($this->agent)->get('/customers')->assertOk()->assertSee('ليد تجريبي');
+        $this->actingAs($this->agent)->get("/customers/{$customer->id}")->assertOk();
+
+        // a lead whose phone is already a customer is linked, not duplicated
+        $dup = Lead::create(['name' => 'نفس الرقم', 'phone' => '01033334444']);
+        $this->actingAs($this->admin)->post('/leads/assign', ['ids' => [$dup->id], 'assigned_to' => $this->admin->id])->assertSessionHas('success');
+        $this->assertSame(1, Customer::where('phone', '01033334444')->count());
+        $this->assertSame($customer->id, $dup->fresh()->customer_id);
+
+        // delete selected leads; the customers made from them stay
+        $this->actingAs($this->agent)->post('/leads/delete', ['ids' => [$lead->id]])->assertForbidden();
+        $this->actingAs($this->admin)->post('/leads/delete', ['ids' => [$lead->id, $dup->id]])->assertRedirect();
+        $this->assertSame(0, Lead::count());
+        $this->assertNotNull($customer->fresh());
     }
 
     public function test_stale_followup_allows_takeover_request_subject_to_admin_approval(): void
