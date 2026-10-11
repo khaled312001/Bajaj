@@ -84,7 +84,8 @@ Route::middleware(['auth', 'guard.app'])->group(function () {
     // follow-ups
     Route::get('/followups', [FollowupController::class, 'index'])->middleware('perm:followups,view')->name('followups.index');
     Route::post('/followups', [FollowupController::class, 'store'])->middleware('perm:followups,create')->name('followups.store');
-    Route::put('/followups/{followup}', [FollowupController::class, 'update'])->middleware('perm:followups,edit')->name('followups.update');
+    Route::post('/followups/clear-overdue', [FollowupController::class, 'clearOverdue'])->middleware('perm:followups,delete')->name('followups.clear-overdue');
+    Route::put('/followups/{followup}',[FollowupController::class, 'update'])->middleware('perm:followups,edit')->name('followups.update');
     Route::post('/followups/{followup}/complete', [FollowupController::class, 'complete'])->middleware('perm:followups,edit')->name('followups.complete');
     Route::delete('/followups/{followup}', [FollowupController::class, 'destroy'])->middleware('perm:followups,delete')->name('followups.destroy');
 

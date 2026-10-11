@@ -30,8 +30,26 @@
                 @if(isset($counts[$k]))<span class="cnt {{ $red && $counts[$k] ? 'red' : '' }}">{{ $counts[$k] }}</span>@endif</a>
         @endforeach
     </div>
+    @if($counts['overdue'] && auth()->user()->allows('followups', 'delete'))<button class="btn btn-danger-soft" data-open="m-fu-clear"><i class="fa-solid fa-broom"></i> مسح المتأخرات</button>@endif
     @if(auth()->user()->allows('followups', 'create'))<button class="btn btn-primary" data-open="m-fu-add"><i class="fa-solid fa-plus"></i> متابعة جديدة</button>@endif
 </div>
+
+@if($counts['overdue'] && auth()->user()->allows('followups', 'delete'))
+<div class="modal" id="m-fu-clear"><div class="modal-box" style="max-width:460px">
+    <div class="modal-head"><h3><i class="fa-solid fa-broom" style="color:var(--red)"></i> مسح المتابعات المتأخرة</h3><button class="modal-x" data-close="m-fu-clear"><i class="fa-solid fa-xmark"></i></button></div>
+    <form method="POST" action="{{ route('followups.clear-overdue') }}" data-confirm="متأكد إنك عايز تمسح المتابعات المتأخرة دي؟">
+        @csrf
+        @foreach(['q', 'reason', 'priority', 'employee'] as $k)@if(! empty($filters[$k]))<input type="hidden" name="{{ $k }}" value="{{ $filters[$k] }}">@endif @endforeach
+        <div class="modal-body"><div class="form-grid">
+            <label class="row" style="gap:8px;align-items:center;cursor:pointer"><input type="radio" name="scope" value="all" checked> <span>كل المتأخرات <b>({{ $counts['overdue'] }})</b></span></label>
+            <label class="row" style="gap:8px;align-items:center;cursor:pointer"><input type="radio" name="scope" value="count"> <span>عدد معين من الأقدم:</span>
+                <input class="input" type="number" name="count" min="1" max="{{ $counts['overdue'] }}" placeholder="مثلاً 100" style="width:120px" oninput="this.form.scope.value = 'count'"></label>
+            <div class="hint" style="color:var(--muted);font-size:12px">@if(array_filter(\Illuminate\Support\Arr::only($filters, ['q', 'reason', 'priority', 'employee'])))المسح هيكون حسب التصفية الحالية بس. @endif المتابعات بتتلغي ومش بتظهر في المتأخرة تاني.</div>
+        </div></div>
+        <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close="m-fu-clear">إلغاء</button><button class="btn btn-danger" type="submit"><i class="fa-solid fa-trash"></i> مسح</button></div>
+    </form>
+</div></div>
+@endif
 
 <div class="card mb">
     <form method="GET" class="card-pad">

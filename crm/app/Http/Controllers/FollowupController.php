@@ -58,18 +58,29 @@ class FollowupController extends Controller
         ]);
     }
 
+    /**
+     * mode "now": log a contact that already happened (saved as done, no scheduling) and optionally schedule the
+     * next one; mode "schedule" (default): schedule a follow-up for later.
+     */
     public function store(Request $request)
     {
+        $now = $request->input('mode') === 'now';
+        $schedule = ! $now || $request->boolean('schedule_next');
         $data = $request->validate([
             'customer_id' => ['required', 'exists:customers,id'],
             'deal_id' => ['nullable', 'exists:deals,id'],
             'reason' => ['required', 'string', 'max:120'],
             'priority' => ['nullable', 'in:normal,high'],
+            'outcome' => [$now ? 'required' : 'nullable', 'string', 'max:2000'],
             'notes' => ['nullable', 'string', 'max:2000'],
-            'due_date' => ['required', 'date', 'after_or_equal:today'],
+            'due_date' => [$schedule ? 'required' : 'nullable', 'date', 'after_or_equal:today'],
             'due_time' => ['nullable', 'date_format:H:i'],
             'assigned_to' => ['nullable', 'exists:users,id'],
-        ], ['due_date.after_or_equal' => 'تاريخ المتابعة يجب ألا يكون في الماضي.']);
+        ], [
+            'due_date.after_or_equal' => 'تاريخ المتابعة يجب ألا يكون في الماضي.',
+            'due_date.required' => 'حدد تاريخ المتابعة.',
+            'outcome.required' => 'اكتب إيه اللي تم مع العميل.',
+        ]);
 
         $customer = Customer::findOrFail($data['customer_id']);
         $this->ensureCanSee($customer);
@@ -79,14 +90,71 @@ class FollowupController extends Controller
         if ($user->isAgent()) {
             $assignee = $user->id;
         }
+        $base = [
+            'customer_id' => $customer->id, 'deal_id' => $data['deal_id'] ?? null, 'reason' => $data['reason'],
+            'created_by' => $user->id,
+        ];
+        $messages = [];
 
-        $followup = Followup::create($data + ['created_by' => $user->id]);
-        $followup->forceFill(['assigned_to' => $assignee, 'priority' => $data['priority'] ?? 'normal'])->save();
+        if ($now) {
+            $logged = Followup::create($base + [
+                'due_date' => today(), 'due_time' => now()->format('H:i'), 'status' => 'done',
+                'outcome' => $data['outcome'], 'completed_at' => now(), 'completed_by' => $user->id,
+            ]);
+            $logged->forceFill(['assigned_to' => $user->id, 'priority' => $data['priority'] ?? 'normal'])->save();
+            Activity::log('followup.done', $logged, 'تسجيل تواصل مع العميل ' . $customer->name);
+            Activity::customer($customer, 'followup_done', "تم التواصل ({$logged->reason}): " . $data['outcome']);
+            $messages[] = 'تم تسجيل المتابعة.';
+        }
 
-        Activity::log('followup.create', $followup, 'متابعة جديدة للعميل ' . $customer->name . ' بتاريخ ' . $followup->due_date->format('Y/m/d'));
-        Activity::customer($customer, 'followup', "جدولة متابعة ({$followup->reason}) بتاريخ " . $followup->due_date->format('Y/m/d'));
+        if ($schedule) {
+            $followup = Followup::create($base + [
+                'notes' => $data['notes'] ?? null, 'due_date' => $data['due_date'], 'due_time' => $data['due_time'] ?? null,
+            ]);
+            $followup->forceFill(['assigned_to' => $assignee, 'priority' => $data['priority'] ?? 'normal'])->save();
+            Activity::log('followup.create', $followup, 'متابعة جديدة للعميل ' . $customer->name . ' بتاريخ ' . $followup->due_date->format('Y/m/d'));
+            Activity::customer($customer, 'followup', "جدولة متابعة ({$followup->reason}) بتاريخ " . $followup->due_date->format('Y/m/d'));
+            $messages[] = 'تمت جدولة المتابعة بتاريخ ' . $followup->due_date->format('Y/m/d') . '.';
+        }
 
-        return back()->with('success', 'تمت جدولة المتابعة.');
+        return back()->with('success', implode(' ', $messages));
+    }
+
+    /** Cancel overdue follow-ups in one go: all of them or the oldest N, within the current filters. */
+    public function clearOverdue(Request $request)
+    {
+        $data = $request->validate([
+            'scope' => ['required', 'in:all,count'],
+            'count' => ['required_if:scope,count', 'nullable', 'integer', 'min:1', 'max:100000'],
+        ], ['count.required_if' => 'اكتب عدد المتابعات اللي عايز تمسحها.']);
+
+        $user = $request->user();
+        $q = Followup::query()->visibleTo($user)->pending()->whereDate('due_date', '<', today());
+        if ($user->isAdmin() && ($e = $request->input('employee'))) {
+            $q->where('followups.assigned_to', $e);
+        }
+        if ($r = $request->input('reason')) {
+            $q->where('followups.reason', $r);
+        }
+        if ($p = $request->input('priority')) {
+            $q->where('followups.priority', $p);
+        }
+        if ($s = trim((string) $request->input('q'))) {
+            $q->whereHas('customer', fn ($c) => $c->search($s));
+        }
+        $q->orderBy('due_date')->orderBy('id');
+        if ($data['scope'] === 'count') {
+            $q->limit((int) $data['count']);
+        }
+
+        $ids = $q->pluck('followups.id');
+        foreach ($ids->chunk(500) as $chunk) {
+            Followup::whereIn('id', $chunk)->update(['status' => 'cancelled', 'updated_at' => now()]);
+        }
+        Activity::log('followup.delete', null, 'مسح ' . $ids->count() . ' متابعة متأخرة دفعة واحدة');
+
+        return redirect()->route('followups.index', array_filter($request->only(['employee', 'reason', 'priority', 'q'])) + ['tab' => 'overdue'])
+            ->with('success', 'تم مسح ' . $ids->count() . ' متابعة متأخرة.');
     }
 
     /** Mark done (optionally schedule the next one). */
