@@ -75,10 +75,13 @@
             </div>
         </div>
         <div class="card-body">
+            @php($vehiclePrices = \App\Models\Product::where('is_active', true)->pluck('price', 'name'))
             @forelse($vehicles as $v)
                 <div class="row between wrap" style="gap:10px;padding:8px 0;{{ ! $loop->last ? 'border-bottom:1px solid var(--line-2)' : '' }}">
                     <div><b style="font-size:15px">{{ $v->vehicle }}</b>
                         @if($loop->first)<span class="badge blue" style="margin-right:8px">الأحدث</span>@endif
+                        @if(isset($vehiclePrices[$v->vehicle]))<span class="badge green" style="margin-right:6px">{{ number_format($vehiclePrices[$v->vehicle]) }} ج.م</span>@endif
+                        @if(isset($vehiclePrices[$v->vehicle]) && auth()->user()->allows('calculator'))<button type="button" class="btn btn-xs btn-soft no-print" style="margin-right:6px" data-open="m-quick-calc" data-qc data-qc-product="{{ $v->vehicle }}"><i class="fa-solid fa-calculator"></i> احسب القسط</button>@endif
                         @if($v->notes)<div class="muted small mt">{{ $v->notes }}</div>@endif
                     </div>
                     <div class="row" style="gap:10px">
@@ -219,7 +222,8 @@
     <div class="modal-head"><h3><i class="fa-solid fa-motorcycle" style="color:var(--blue-600)"></i> إضافة مركبة مطلوبة</h3><button class="modal-x" data-close="m-vehicle-add"><i class="fa-solid fa-xmark"></i></button></div>
     <form method="POST" action="{{ route('customers.vehicles.store', $customer) }}">@csrf
         <div class="modal-body">
-            <div class="field"><label>المركبة <span class="req">*</span></label><select class="input" name="vehicle" required><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('vehicle') as $g)<option>{{ $g }}</option>@endforeach</select></div>
+            <div class="field"><label>المركبة <span class="req">*</span></label><select class="input" name="vehicle" id="f-vehicle-add" required data-price-hint><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('vehicle') as $g)<option>{{ $g }}</option>@endforeach</select>
+                <div class="row between wrap" style="gap:6px;margin-top:6px"><b class="price-hint small" style="color:var(--green)"></b>@if(auth()->user()->allows('calculator'))<button type="button" class="btn btn-xs btn-soft" data-open="m-quick-calc" data-qc data-qc-from="#f-vehicle-add"><i class="fa-solid fa-calculator"></i> احسب القسط</button>@endif</div></div>
             <div class="field mt"><label>ملاحظة</label><input class="input" name="notes" maxlength="250"></div>
         </div>
         <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close="m-vehicle-add">إلغاء</button><button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> إضافة</button></div>
@@ -251,4 +255,5 @@
 @endif
 
 @include('followups._modals', ['customer' => $customer])
+@if(auth()->user()->allows('calculator'))@include('customers._quick_calc')@endif
 @endsection

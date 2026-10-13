@@ -15,6 +15,7 @@ class Permissions
         'dashboard' => ['لوحة التحكم', 'fa-chart-pie', ['view']],
         'summary' => ['ملخص اليوم / الأسبوع / الشهر / السنة', 'fa-chart-line', ['view']],
         'customers' => ['العملاء', 'fa-users', ['view', 'create', 'edit', 'delete']],
+        'customers_all' => ['رؤية كل العملاء (مش عملاءه بس)', 'fa-eye', ['view']],
         'followups' => ['المتابعات', 'fa-calendar-check', ['view', 'create', 'edit', 'delete']],
         'deals' => ['الصفقات والأقساط', 'fa-handshake', ['view', 'create', 'edit', 'delete']],
         'payments' => ['الدفعات والتحصيل', 'fa-money-bill-wave', ['create', 'delete']],
@@ -33,11 +34,11 @@ class Permissions
     {
         return [
             'خدمة عملاء' => ['desc' => 'إدخال العملاء ومتابعتهم وحاسبة الأقساط وعروض الأسعار', 'is_default' => true, 'perms' => [
-                'dashboard' => ['view'], 'summary' => ['view'], 'customers' => ['view', 'create', 'edit'], 'followups' => ['view', 'create', 'edit', 'delete'],
+                'dashboard' => ['view'], 'summary' => ['view'], 'customers' => ['view', 'create', 'edit'], 'customers_all' => ['view'], 'followups' => ['view', 'create', 'edit', 'delete'],
                 'deals' => ['view', 'create', 'edit'], 'payments' => ['create'], 'calculator' => ['view'], 'vehicles' => ['view'], 'documents' => ['view', 'create'],
             ]],
             'مبيعات' => ['desc' => 'خدمة العملاء + المستندات القانونية والمخزن والتقارير', 'is_default' => false, 'perms' => [
-                'dashboard' => ['view'], 'summary' => ['view'], 'customers' => ['view', 'create', 'edit'], 'followups' => ['view', 'create', 'edit', 'delete'],
+                'dashboard' => ['view'], 'summary' => ['view'], 'customers' => ['view', 'create', 'edit'], 'customers_all' => ['view'], 'followups' => ['view', 'create', 'edit', 'delete'],
                 'deals' => ['view', 'create', 'edit'], 'payments' => ['create'], 'calculator' => ['view'], 'vehicles' => ['view', 'create', 'edit'],
                 'documents' => ['view', 'create'], 'legal_documents' => ['view', 'create'], 'reports' => ['view'], 'products' => ['view'],
             ]],

@@ -26,7 +26,8 @@
             @include('partials.geo_fields', ['govValue' => old('governorate', $customer->governorate), 'centerValue' => old('district', $customer->district)])
             <div class="field"><label>العنوان التفصيلي</label><input class="input" name="address" value="{{ old('address', $customer->address) }}"></div>
             <div class="field"><label>قناة التواصل</label><select class="input" name="channel"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('channel') as $g)<option @selected(old('channel', $customer->channel) === $g)>{{ $g }}</option>@endforeach</select></div>
-            <div class="field"><label>المركبة المطلوبة</label><select class="input" name="interest"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('vehicle') as $g)<option @selected(old('interest', $customer->interest) === $g)>{{ $g }}</option>@endforeach</select></div>
+            <div class="field"><label>المركبة المطلوبة</label><select class="input" name="interest" id="f-interest" data-price-hint><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('vehicle') as $g)<option @selected(old('interest', $customer->interest) === $g)>{{ $g }}</option>@endforeach</select>
+                <div class="row between wrap" style="gap:6px;margin-top:6px"><b class="price-hint small" style="color:var(--green)"></b>@if(auth()->user()->allows('calculator'))<button type="button" class="btn btn-xs btn-soft" data-open="m-quick-calc" data-qc data-qc-from="#f-interest"><i class="fa-solid fa-calculator"></i> احسب القسط</button>@endif</div></div>
             <div class="field"><label>جدية العميل</label><select class="input" name="seriousness"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('seriousness') as $g)<option @selected(old('seriousness', $customer->seriousness) === $g)>{{ $g }}</option>@endforeach</select></div>
             <div class="field"><label>الفرع</label><select class="input" name="branch"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('branch') as $g)<option @selected(old('branch', $customer->branch) === $g)>{{ $g }}</option>@endforeach</select></div>
             <div class="field"><label>السن</label><input class="input" type="number" name="age" min="15" max="100" value="{{ old('age', $customer->age) }}"></div>
@@ -52,6 +53,7 @@
         </div>
     </div>
 </form>
+@if(auth()->user()->allows('calculator'))@include('customers._quick_calc')@endif
 @endsection
 
 @push('scripts')

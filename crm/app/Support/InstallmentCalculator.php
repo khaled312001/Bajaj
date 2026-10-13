@@ -97,6 +97,36 @@ class InstallmentCalculator
         ];
     }
 
+    /**
+     * Installment breakdown sent to the financing company (WhatsApp formatting). The first installment is paid
+     * with the down payment at delivery, so only months - 1 installments remain afterwards.
+     */
+    public static function financeCopyText(string $product, float $price, float $down, float $remaining, float $fees, float $monthly, int $months): string
+    {
+        $fmt = fn ($v) => number_format((float) $v, 0, '.', ',');
+        $firstTotal = $down + $monthly + $fees;
+        $remainingMonths = max(0, $months - 1);
+        $grandTotal = $firstTotal + $monthly * $remainingMonths;
+
+        return implode("\n", [
+            '*تفاصيل التقسيط*',
+            '=================================',
+            '*المنتج:* ' . $product,
+            '*سعر الكاش:* ' . $fmt($price) . ' جنيه',
+            '*المقدم الأساسي:* ' . $fmt($down) . ' جنيه',
+            '*الباقي:* ' . $fmt($remaining) . ' جنيه',
+            '*المصاريف الإدارية:* ' . $fmt($fees) . ' جنيه',
+            '*القسط الأول:* ' . $fmt($monthly) . ' جنيه',
+            '*إجمالي المقدم (شامل القسط الاول والمصاريف):* ' . $fmt($firstTotal) . ' جنيه',
+            '=================================',
+            '',
+            '*نظام التقسيط (' . $months . ' شهر)*',
+            '   > باقي الأقساط: ' . $fmt($monthly) . ' جنيه × (' . $remainingMonths . ' شهر)',
+            '   > الإجمالي الكلي: ' . $fmt($grandTotal) . ' جنيه',
+            '---------------------------------',
+        ]);
+    }
+
     /** Default markup table of the dealership (editable in Settings). */
     public const DEFAULT_TABLE = [6 => 1.125, 12 => 1.22, 18 => 1.33, 20 => 1.36, 24 => 1.44, 36 => 1.66];
 

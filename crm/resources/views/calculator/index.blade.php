@@ -57,6 +57,7 @@
         </div>
         <div class="btn-group no-print">
             <button class="btn btn-primary" id="btn-copy"><i class="fa-regular fa-copy"></i> نسخ عرض التقسيط للعميل</button>
+            <button class="btn btn-soft" id="btn-copy-fin" type="button"><i class="fa-regular fa-copy"></i> نسخ لجهة التقسيط</button>
             <a class="btn btn-ghost" id="btn-wa" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-whatsapp" style="color:#16a34a"></i> إرسال واتساب</a>
             <a class="btn btn-ghost" id="btn-pdf" href="#" target="_blank" rel="noopener"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> عرض سعر PDF</a>
             <button class="btn btn-ghost" onclick="window.print()"><i class="fa-solid fa-print"></i> طباعة</button>
@@ -91,7 +92,7 @@
     if ($('c-down-mode').value === 'pct') down = price * down / 100;
     const type = $('c-type').value;
     return { price, down, plan: $('c-plan').value, months: $('c-months').value, rate: type === 'table' ? 0 : ($('c-rate').value || 0), type,
-      fees: type === 'table' ? ($('c-fees').value || 0) : ($('c-fees-o').value || 0), first_due: $('c-first').value };
+      fees: type === 'table' ? ($('c-fees').value || 0) : ($('c-fees-o').value || 0), first_due: $('c-first').value, product: product ? product.name : '' };
   }
   function offerText(d) {
     const L = [cfg.title, ''];
@@ -129,6 +130,7 @@
         $('sched').tBodies[0].innerHTML = d.schedule.map(s => '<tr><td>' + s.number + '</td><td>' + s.due_date + '</td><td class="num"><b>' + fmt(s.amount) + '</b></td><td class="num">' + fmt(s.principal) + '</td><td class="num">' + fmt(s.interest) + '</td><td class="num">' + fmt(s.balance) + '</td></tr>').join('');
         $('btn-pdf').href = @json(route('documents.create', 'quote')) + '?' + new URLSearchParams({ price: d.price, product: product ? product.name : '' });
         const txt = offerText(d); $('offer').textContent = txt; $('btn-wa').href = 'https://wa.me/?text=' + encodeURIComponent(txt);
+        $('btn-copy-fin').style.display = d.finance_text ? '' : 'none';
       } catch (e) {}
     }, 180);
   }
@@ -147,6 +149,7 @@
   document.querySelectorAll('[data-down]').forEach(b => b.addEventListener('click', () => { const v = +b.dataset.down; $('c-down-mode').value = v ? 'pct' : 'amt'; $('c-down').value = v; run(); }));
   document.querySelectorAll('#calc-form input, #calc-form select').forEach(e => { e.addEventListener('input', run); e.addEventListener('change', run); });
   $('btn-xlsx').addEventListener('click', () => { const f = $('xlsx-form'); f.querySelectorAll('input:not([name=_token])').forEach(i => i.remove()); const p = params(); Object.keys(p).forEach(k => { const i = document.createElement('input'); i.type = 'hidden'; i.name = k; i.value = p[k]; f.appendChild(i); }); f.submit(); });
+  $('btn-copy-fin').addEventListener('click', () => { if (!last || !last.finance_text) return; navigator.clipboard.writeText(last.finance_text).then(() => toast('تم نسخ التفاصيل لجهة التقسيط')).catch(() => toast('تعذر النسخ', 'error')); });
   $('btn-copy').addEventListener('click', () => { if (!last) return; navigator.clipboard.writeText(offerText(last)).then(() => toast('تم نسخ عرض التقسيط')).catch(() => toast('تعذر النسخ', 'error')); });
   chips(); run();
 })();

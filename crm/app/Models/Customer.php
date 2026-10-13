@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Permissions;
 use App\Support\Settings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -120,10 +121,13 @@ class Customer extends Model
 
     /* ---- Scopes ---- */
 
-    /** Restrict customers an agent may see according to the admin-configured scope. */
+    /**
+     * Restrict customers an agent may see: everyone when the global scope is "all" or the employee has the
+     * "customers_all" permission (role profile or personal override), otherwise only their own customers.
+     */
     public function scopeVisibleTo(Builder $q, User $user): Builder
     {
-        if ($user->isAdmin() || Settings::get('agent_scope', 'own') === 'all') {
+        if ($user->isAdmin() || Settings::get('agent_scope', 'own') === 'all' || Permissions::allows($user, 'customers_all')) {
             return $q;
         }
 

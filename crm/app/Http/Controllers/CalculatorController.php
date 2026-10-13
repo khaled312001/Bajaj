@@ -19,7 +19,14 @@ class CalculatorController extends Controller
 
     public function calculate(Request $request)
     {
-        return response()->json(InstallmentCalculator::calculate($this->inputs($request)));
+        $in = $this->inputs($request);
+        $r = InstallmentCalculator::calculate($in);
+        // company / financing-entity system: ready-to-send breakdown for the financing company
+        if ($r['type'] === 'table' && $r['monthly'] > 0) {
+            $r['finance_text'] = InstallmentCalculator::financeCopyText((string) ($in['product'] ?? ''), $r['price'], $r['down'], $r['financed'], $r['fees'], $r['monthly'], $r['months']);
+        }
+
+        return response()->json($r);
     }
 
     /** Download the quote schedule as Excel (contains no customer data). */
@@ -56,6 +63,7 @@ class CalculatorController extends Controller
             'fees_type' => ['nullable', 'in:fixed,percent'],
             'fees_financed' => ['nullable', 'boolean'],
             'first_due' => ['nullable', 'date'],
+            'product' => ['nullable', 'string', 'max:150'],
         ]);
         $d['fees_financed'] = $request->boolean('fees_financed');
 

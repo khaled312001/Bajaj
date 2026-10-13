@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\InstallmentCalculator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -69,28 +70,8 @@ class Deal extends Model
             return null;
         }
 
-        $fmt = fn ($v) => number_format((float) $v, 0, '.', ',');
-        $firstTotal = $this->down_payment + $this->monthly_installment + $this->admin_fees;
-        $remainingMonths = max(0, $this->months - 1);
-        $grandTotal = $firstTotal + $this->monthly_installment * $remainingMonths;
-
-        return implode("\n", [
-            '*تفاصيل التقسيط*',
-            '=================================',
-            '*المنتج:* ' . trim($this->vehicle . ' ' . $this->model),
-            '*سعر الكاش:* ' . $fmt($this->total_price) . ' جنيه',
-            '*المقدم الأساسي:* ' . $fmt($this->down_payment) . ' جنيه',
-            '*الباقي:* ' . $fmt($this->financed_amount) . ' جنيه',
-            '*المصاريف الإدارية:* ' . $fmt($this->admin_fees) . ' جنيه',
-            '*القسط الأول:* ' . $fmt($this->monthly_installment) . ' جنيه',
-            '*إجمالي المقدم (شامل القسط الاول والمصاريف):* ' . $fmt($firstTotal) . ' جنيه',
-            '=================================',
-            '',
-            '*نظام التقسيط (' . $this->months . ' شهر)*',
-            '   > باقي الأقساط: ' . $fmt($this->monthly_installment) . ' جنيه × (' . $remainingMonths . ' شهر)',
-            '   > الإجمالي الكلي: ' . $fmt($grandTotal) . ' جنيه',
-            '---------------------------------',
-        ]);
+        return InstallmentCalculator::financeCopyText(trim($this->vehicle . ' ' . $this->model), (float) $this->total_price,
+            (float) $this->down_payment, (float) $this->financed_amount, (float) $this->admin_fees, (float) $this->monthly_installment, (int) $this->months);
     }
 
     public function getStatusClassAttribute(): string
