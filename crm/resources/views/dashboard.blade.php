@@ -13,6 +13,17 @@
 </div></div>
 <style>.dash-logo{width:84px;height:84px;border-radius:18px;background:#000;padding:4px;flex:0 0 auto}.dash-logo img{width:100%;height:100%;object-fit:contain;border-radius:14px}@media(max-width:600px){.dash-logo{width:64px;height:64px}}</style>
 
+@if($newAssigned->isNotEmpty())
+    <div class="alert alert-success new-assigned" style="flex-direction:column;gap:8px">
+        <div class="row" style="width:100%;gap:8px"><i class="fa-solid fa-user-plus"></i><b>تم تعيين {{ $newAssigned->count() }} {{ $newAssigned->count() === 1 ? 'عميل جديد' : 'عملاء جدد' }} لك</b>
+            <a class="btn btn-xs btn-green" style="margin-right:auto" href="{{ route('customers.index', ['new' => 1]) }}">عرض العملاء الجدد</a></div>
+        <div class="row wrap" style="gap:6px">@foreach($newAssigned->take(8) as $nc)<a class="badge green" href="{{ route('customers.show', $nc) }}">{{ $nc->name }} · {{ $nc->assigned_at->diffForHumans() }}</a>@endforeach
+            @if($newAssigned->count() > 8)<span class="badge gray">+{{ $newAssigned->count() - 8 }}</span>@endif</div>
+        <div class="xs" style="font-weight:600">يفضلوا ظاهرين هنا وفي أول قائمة العملاء لحد ما تفتح ملف كل واحد فيهم.</div>
+    </div>
+    <div data-toast="تم تعيين {{ $newAssigned->count() }} {{ $newAssigned->count() === 1 ? 'عميل جديد' : 'عملاء جدد' }} لك"></div>
+@endif
+
 @if($isAdmin && $alerts->count())
     <div class="alert alert-warning" style="flex-direction:column;gap:6px">
         <div class="row"><i class="fa-solid fa-shield-halved"></i><b>تنبيهات أمنية خلال آخر 3 أيام</b><a class="btn btn-xs btn-amber" style="margin-right:auto" href="{{ route('logs.index', ['action' => 'security.alert']) }}">عرض الكل</a></div>

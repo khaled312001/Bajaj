@@ -117,7 +117,7 @@ class PdfService
                 return $pass;
             };
 
-            return self::fillPage($build, ($landscape ? 210 : 297) - $margins['b'] - 3);
+            return self::fillPage($build, ($landscape ? 210 : 297) - $margins['b'] - 3, (float) ($letterhead['max_gap'] ?? 4.0));
         }
         $mpdf = $make();
         if ($letterhead) {
@@ -142,7 +142,7 @@ class PdfService
      * the footer instead of leaving the bottom of the sheet empty. Spacing grows linearly with $gap, so two
      * measurements give the target; it is then checked (and backed off) to stay on a single page.
      */
-    private static function fillPage(\Closure $build, float $limit): string
+    private static function fillPage(\Closure $build, float $limit, float $maxGap = 4.0): string
     {
         $base = $build(1.0);
         if ($base['page'] !== 1) {
@@ -153,7 +153,7 @@ class PdfService
         if ($probe['page'] !== 1 || $perUnit <= 0.5) {
             return $base['pdf'];
         }
-        $gap = min(4.0, 1 + ($limit - $base['y']) / $perUnit);
+        $gap = min($maxGap, 1 + ($limit - $base['y']) / $perUnit);
         for ($i = 0; $i < 4 && $gap > 1.0; $i++, $gap = 1 + ($gap - 1) * 0.9) {
             $pass = $build($gap);
             if ($pass['page'] === 1 && $pass['y'] <= $limit + 0.5) {

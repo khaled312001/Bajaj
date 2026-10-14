@@ -60,6 +60,10 @@ class DocumentController extends Controller
                 $values[$f[0]] = $f[3];
             }
         }
+        // a receipt's payment method is how this amount was paid, not the deal's cash / installment type
+        if ($type === 'receipt' && ! in_array($values['pay_method'] ?? '', DocumentService::RECEIPT_METHODS, true) && (! $payment || $values['pay_method'] === 'نقدي')) {
+            $values['pay_method'] = 'كاش';
+        }
 
         return view('documents.form', ['type' => $type, 'def' => $def, 'values' => $values, 'deal' => $deal, 'customer' => $customer, 'payment' => $payment, 'log' => null, 'customerDeals' => $customerDeals]);
     }
@@ -142,6 +146,8 @@ class DocumentController extends Controller
         ], $def['title'] . ' ' . $docNo, false, $def['title'] . ' — ' . $docNo, match (true) {
             $reefy => ['header' => resource_path('pdf/reefy-header.png'), 'footer' => resource_path('pdf/reefy-footer.png')],
             $traffic => ['paper' => true],
+            // the receipt keeps its lines close together in the upper part of the sheet instead of spreading to the footer
+            $document->type === 'receipt' => ['company' => true, 'max_gap' => 1.2],
             default => ['company' => true],
         });
         Activity::log('document', $document, 'طباعة PDF ' . $docNo);

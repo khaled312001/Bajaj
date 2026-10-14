@@ -16,6 +16,7 @@ class DocumentService
     private const PERSON = [
         ['customer_name', 'اسم العميل', 'text'], ['nat_id', 'الرقم القومي', 'text'], ['address', 'العنوان', 'text'],
     ];
+    public const RECEIPT_METHODS = ['كاش', 'تحويل بنكي', 'إنستاباي', 'فودافون كاش / محفظة', 'شيك', 'فيزا / ماكينة'];
     private const VEHICLE = [
         ['product', 'النوع / الماركة', 'text'], ['model', 'الموديل', 'text'], ['color', 'اللون', 'text'],
         ['chassis', 'رقم الشاسيه', 'text'], ['motor', 'رقم الموتور', 'text'],
@@ -41,7 +42,11 @@ class DocumentService
             'invoice' => ['title' => 'عقد بيع', 'prefix' => 'I', 'agent' => false, 'icon' => 'fa-receipt', 'group' => 'مبيعات', 'desc' => 'عقد بيع / إقرار استلام المركبة وملحقاتها (بدون مبالغ) بنفس نموذج الشركة.',
                 'fields' => array_merge($person, $vehicle, [['purchase_date', 'تاريخ الشراء', 'date'], ['delivered_by', 'تم التسليم بمعرفة', 'text'], ['phone', 'الموبايل', 'text']])],
             'receipt' => ['title' => 'إيصال سداد', 'prefix' => 'R', 'agent' => false, 'icon' => 'fa-money-check-dollar', 'group' => 'مبيعات', 'desc' => 'إيصال استلام مبلغ (قسط / مقدم / دفعة).',
-                'fields' => [['customer_name', 'استلمنا من السيد', 'text'], ['amount', 'المبلغ (ج.م)', 'money'], ['reason', 'وذلك عن', 'text', 'قسط'], ['pay_method', 'طريقة الدفع', 'text', 'نقدي'], ['received_by', 'المستلم', 'text']]],
+                'fields' => [['customer_name', 'استلمنا من السيد', 'text'], ['code', 'كود العميل', 'text'], ['nat_id', 'الرقم القومي', 'text'],
+                    ['amount', 'المبلغ (ج.م)', 'money'], ['reason', 'وذلك قيمة', 'text', 'قسط'], ['paid_on', 'تاريخ السداد', 'date', now()->toDateString()],
+                    ['pay_method', 'طريقة الدفع', 'select', 'كاش', self::RECEIPT_METHODS],
+                    ['ref_no', 'رقم المرجع (تحويل بنكي / إنستاباي / محفظة)', 'text'], ['transfer_receipt', 'رقم إيصال التحويل', 'text'],
+                    ['details', 'تفاصيل (اختياري — لو فاضية يفضل المربع فاضي للكتابة باليد)', 'textarea'], ['received_by', 'المستلم (عن الشركة)', 'text']]],
             'finance_offer' => ['title' => 'عرض سعر', 'list_title' => 'عرض سعر لجهة التمويل', 'prefix' => 'F', 'agent' => false, 'icon' => 'fa-building-columns', 'group' => 'جهات التمويل', 'desc' => 'عرض السعر المقدم لشركة التمويل (ريفي وغيرها).',
                 'fields' => array_merge([['entity', 'جهة التمويل', 'text', 'ريفي']], [['customer_name', 'اسم العميل', 'text']], $vehicle, [['price', 'السعر (ج.م)', 'money'], ['paid', 'تم دفع (ج.م)', 'money']])],
             'finance_receipt' => ['title' => 'إقرار استلام منتج (جهة تمويل)', 'prefix' => 'FR', 'agent' => false, 'icon' => 'fa-file-signature', 'group' => 'جهات التمويل', 'desc' => 'إقرار التاجر بتسليم المنتج للعميل بموجب التمويل.',

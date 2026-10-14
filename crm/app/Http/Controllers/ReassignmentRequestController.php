@@ -42,7 +42,7 @@ class ReassignmentRequestController extends Controller
         abort_unless($reassignment->status === 'pending', 422, 'هذا الطلب تم اتخاذ قرار بشأنه بالفعل.');
         $customer = $reassignment->customer;
         $old = $customer->assignee?->name ?? 'بدون';
-        $customer->update(['assigned_to' => $reassignment->requested_by]);
+        $customer->assignTo($reassignment->requested_by, $request->user());
         $customer->followups()->where('status', 'pending')->update(['assigned_to' => $reassignment->requested_by]);
         $reassignment->update(['status' => 'approved', 'decided_by' => $request->user()->id, 'decided_at' => now()]);
 

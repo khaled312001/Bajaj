@@ -94,6 +94,7 @@ class LeadController extends Controller
                         'status' => 'مفتوحة', 'notes' => 'من طلبات النموذج العام بتاريخ ' . $lead->created_at->format('Y/m/d'),
                         'created_by' => $admin->id, 'assigned_to' => $employee->id,
                     ]);
+                    $customer->assignTo($employee->id, $admin);
                     if ($customer->interest) {
                         $customer->vehicles()->create(['vehicle' => $customer->interest, 'created_by' => $admin->id]);
                     }

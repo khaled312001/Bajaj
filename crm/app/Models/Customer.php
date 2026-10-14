@@ -27,7 +27,7 @@ class Customer extends Model
 
     protected function casts(): array
     {
-        return ['nat_id' => 'encrypted', 'contacted_at' => 'datetime'];
+        return ['nat_id' => 'encrypted', 'contacted_at' => 'datetime', 'assigned_at' => 'datetime', 'assignment_seen_at' => 'datetime'];
     }
 
     protected static function booted(): void
@@ -125,6 +125,28 @@ class Customer extends Model
      * Restrict customers an agent may see: everyone when the global scope is "all" or the employee has the
      * "customers_all" permission (role profile or personal override), otherwise only their own customers.
      */
+    /**
+     * Hand the customer to an employee. When someone else does it (admin, leads, an approved transfer) the customer
+     * shows as "new" for that employee — dashboard notice, badge, top of their list — until they open the file.
+     */
+    public function assignTo(int $userId, ?User $by = null): void
+    {
+        $this->forceFill([
+            'assigned_to' => $userId, 'assigned_at' => now(),
+            'assignment_seen_at' => $by && $by->id === $userId ? now() : null,
+        ])->save();
+    }
+
+    public function isNewFor(User $user): bool
+    {
+        return (int) $this->assigned_to === $user->id && $this->assigned_at && ! $this->assignment_seen_at;
+    }
+
+    public function scopeNewlyAssignedTo(Builder $q, User $user): Builder
+    {
+        return $q->where('customers.assigned_to', $user->id)->whereNotNull('customers.assigned_at')->whereNull('customers.assignment_seen_at');
+    }
+
     public function scopeVisibleTo(Builder $q, User $user): Builder
     {
         if ($user->isAdmin() || Settings::get('agent_scope', 'own') === 'all' || Permissions::allows($user, 'customers_all')) {

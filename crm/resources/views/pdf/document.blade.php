@@ -54,11 +54,19 @@
 @break
 
 @case('receipt')
-    <p class="text serif">استلمت شركة <b>{{ $co }}</b> من السيد / <b>{{ $v('customer_name') }}</b></p>
-    <div class="box"><p class="text" style="margin:0">مبلغاً وقدره: <b style="font-size:16pt;color:#2e3192">{{ $amt('amount', 2) }}</b> جنيه مصري@if($words('amount'))<br><span style="font-size:12pt">( {{ $words('amount') }} )</span>@endif</p></div>
-    <p class="text serif">وذلك قيمة: <b>{{ $v('reason') }}</b><br>طريقة الدفع: <b>{{ $v('pay_method', 'نقدي') }}</b></p>
-    <p class="text serif">وهذا إيصال منا بالاستلام.</p>
-    <table class="sign"><tr><td><div class="line">&nbsp;</div>المستلم (عن الشركة){{ ! empty($d['received_by']) ? ': ' . $d['received_by'] : '' }}</td><td><div class="line">&nbsp;</div>توقيع الدافع</td></tr></table>
+    <p class="text serif" style="margin-bottom:0">استلمت شركة <b>{{ $co }}</b> من السيد / <b>{{ $v('customer_name') }}</b> &nbsp;—&nbsp; كود: <b>{{ $v('code', '..........') }}</b></p>
+    <p class="text serif" style="margin-top:0">رقم قومي: <b>{{ $v('nat_id') }}</b></p>
+    <table align="center" style="width:82%;border:0.4mm solid #1d4ed8;background:#f8fbff;margin:{{ 2 * $gap }}mm auto"><tr><td style="padding:{{ 2.2 * $gap }}mm 4mm;text-align:center;font-size:12pt;font-weight:bold">
+        مبلغاً وقدره: <span style="font-size:15pt;color:#2e3192">{{ $amt('amount', 2) }}</span> جنيه مصري@if($words('amount'))<br><span style="font-size:11pt">( {{ $words('amount') }} )</span>@endif</td></tr></table>
+    <p class="text serif" style="margin-bottom:0">وذلك قيمة: <b>{{ $v('reason') }}</b> &nbsp;—&nbsp; بتاريخ: <b><bdo dir="ltr">{{ ! empty($d['paid_on']) ? \Illuminate\Support\Carbon::parse($d['paid_on'])->format('d-M-Y') : '................' }}</bdo></b></p>
+    <p class="text serif" style="margin:0">طريقة الدفع: <b>{{ $v('pay_method', 'كاش') }}</b></p>
+    @if(! in_array($d['pay_method'] ?? 'كاش', ['كاش', 'نقدي'], true) || ! empty($d['ref_no']) || ! empty($d['transfer_receipt']))
+        <p class="text serif" style="margin:0">رقم المرجع: <b><bdo dir="ltr">{{ $v('ref_no') }}</bdo></b> &nbsp;—&nbsp; رقم إيصال التحويل: <b><bdo dir="ltr">{{ $v('transfer_receipt') }}</bdo></b></p>
+    @endif
+    <table style="width:100%;border:0.3mm solid #94a3b8;margin-top:{{ 3 * $gap }}mm"><tr><td style="height:{{ 20 * $gap }}mm;vertical-align:top;padding:2mm 3mm;font-size:12pt;font-weight:bold">تفاصيل: <span style="font-weight:normal">{!! nl2br(e($d['details'] ?? '')) !!}</span></td></tr></table>
+    <p class="text serif" style="margin-top:{{ 3 * $gap }}mm">وهذا إيصال منا بالاستلام.</p>
+    <table class="sign" style="margin-top:{{ 4 * $gap }}mm"><tr><td><div class="line">&nbsp;</div>المستلم (عن الشركة){{ ! empty($d['received_by']) ? ': ' . $d['received_by'] : '' }}
+        <div style="font-size:9.5pt;color:#b91c1c;margin-top:2mm">يعتبر هذا الإيصال لاغياً بدون ختم الشركة</div></td><td style="vertical-align:top"><div class="line">&nbsp;</div>توقيع الدافع</td></tr></table>
 @break
 
 @case('finance_offer')

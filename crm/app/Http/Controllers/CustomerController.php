@@ -41,6 +41,9 @@ class CustomerController extends Controller
         if ($v = $request->query('pay_method')) {
             $q->whereHas('deals', fn ($d) => $d->where('pay_method', $v));
         }
+        if ($request->boolean('new')) {
+            $q->newlyAssignedTo($user);
+        }
         if ($request->boolean('has_debt')) {
             $q->whereHas('deals', fn ($d) => $d->where('balance', '>', 0));
         }
@@ -78,6 +81,8 @@ class CustomerController extends Controller
 
         $sort = in_array($request->query('sort'), ['name', 'created_at', 'status'], true) ? $request->query('sort') : 'created_at';
         $dir = $request->query('dir') === 'asc' ? 'asc' : 'desc';
+        // customers just handed to this employee come first until they open them
+        $q->orderByRaw('(customers.assigned_to = ? AND customers.assigned_at IS NOT NULL AND customers.assignment_seen_at IS NULL) DESC', [$user->id]);
         $customers = $q->orderBy("customers.$sort", $dir)->paginate(20)->withQueryString();
 
         return view('customers.index', [
@@ -109,6 +114,9 @@ class CustomerController extends Controller
         $data['assigned_to'] = $user->isAdmin() && $request->filled('assigned_to') ? (int) $request->input('assigned_to') : $user->id;
 
         $customer = Customer::create($data);
+        if ($customer->assigned_to !== $user->id) {
+            $customer->assignTo($customer->assigned_to, $user);
+        }
         Activity::log('customer.create', $customer, 'إضافة العميل ' . $customer->name);
         Activity::customer($customer, 'created', 'تم إدخال العميل بواسطة ' . $user->name);
 
@@ -140,6 +148,9 @@ class CustomerController extends Controller
     public function show(Request $request, Customer $customer)
     {
         ViewGuard::record($request->user(), $customer);
+        if ($customer->isNewFor($request->user())) {
+            $customer->forceFill(['assignment_seen_at' => now()])->saveQuietly();
+        }
 
         $customer->load(['creator:id,name,role', 'assignee:id,name,role']);
         $deals = $customer->deals()->with(['installments', 'payments.receiver:id,name', 'creator:id,name'])->latest()->get();
@@ -196,7 +207,7 @@ class CustomerController extends Controller
         $data = $request->validate(['assigned_to' => ['required', Rule::exists('users', 'id')->whereNull('deleted_at')]]);
         $new = User::findOrFail($data['assigned_to']);
         $old = $customer->assignee?->name ?? 'بدون';
-        $customer->update(['assigned_to' => $new->id]);
+        $customer->assignTo($new->id, $request->user());
         $customer->followups()->where('status', 'pending')->update(['assigned_to' => $new->id]);
 
         Activity::log('customer.assign', $customer, "نقل العميل {$customer->name} من {$old} إلى {$new->name}");

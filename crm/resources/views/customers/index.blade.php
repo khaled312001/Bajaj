@@ -47,8 +47,9 @@
             </tr></thead>
             <tbody>
             @forelse($customers as $c)
-                <tr>
-                    <td><a class="person" href="{{ route('customers.show', $c) }}"><div class="avatar sm">{{ mb_substr($c->name, 0, 1) }}</div><div><b>{{ $c->name }}</b><small><span class="code">{{ $c->code }}</span></small></div></a></td>
+                @php($isNew = $c->isNewFor(auth()->user()))
+                <tr @if($isNew) class="row-new" @endif>
+                    <td><a class="person" href="{{ route('customers.show', $c) }}"><div class="avatar sm">{{ mb_substr($c->name, 0, 1) }}</div><div><b>{{ $c->name }}</b>@if($isNew) <span class="badge green" style="font-size:10px">جديد — اتعيّن لك</span>@endif<small><span class="code">{{ $c->code }}</span></small></div></a></td>
                     <td><span class="num">{{ $c->phone }}</span></td>
                     <td>{{ $c->governorate ?: '—' }}</td>
                     <td><span class="badge dot {{ $c->status_class }}">{{ $c->status }}</span>@if($c->seriousness)<div class="xs muted" style="margin-top:3px">{{ $c->seriousness }}</div>@endif</td>

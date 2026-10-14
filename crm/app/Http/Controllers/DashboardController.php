@@ -82,13 +82,16 @@ class DashboardController extends Controller
             ->whereBetween('due_date', [today()->toDateString(), today()->addDays(7)->toDateString()])
             ->whereColumn('paid_amount', '<', 'amount')->orderBy('due_date')->limit(6)->get() : collect();
 
+        // customers handed to this employee (by the admin, from leads, an approved transfer) that they haven't opened yet
+        $newAssigned = Customer::newlyAssignedTo($user)->latest('assigned_at')->get(['id', 'name', 'code', 'phone', 'assigned_at', 'created_by']);
+
         $alerts = $isAdmin ? ActivityLog::with('user:id,name')->where('action', 'security.alert')->where('created_at', '>=', now()->subDays(3))->latest('created_at')->limit(5)->get() : collect();
 
         return view('dashboard', [
             'stats' => $stats, 'todayFollowups' => $todayFollowups, 'recent' => $recent,
             'statusChart' => ['labels' => $statusData->keys()->all(), 'data' => $statusData->values()->all()],
             'dayChart' => ['labels' => $days->map->format('m/d')->all(), 'data' => $days->map(fn ($d) => (int) ($perDay[$d->toDateString()] ?? 0))->all()],
-            'byEmployee' => $byEmployee, 'dueInstallments' => $dueInstallments, 'alerts' => $alerts, 'dailyNotice' => $dailyNotice,
+            'byEmployee' => $byEmployee, 'dueInstallments' => $dueInstallments, 'alerts' => $alerts, 'dailyNotice' => $dailyNotice, 'newAssigned' => $newAssigned,
         ]);
     }
 

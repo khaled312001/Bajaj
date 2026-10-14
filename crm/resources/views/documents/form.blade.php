@@ -38,6 +38,10 @@
             @php($val = old($name, $values[$name] ?? ''))
             @if($kind === 'check')
                 <div class="field span-2"><label class="check"><input type="checkbox" name="{{ $name }}" value="1" @checked(old($name, $values[$name] ?? false))> {{ $label }}</label></div>
+            @elseif($kind === 'select')
+                <div class="field"><label>{{ $label }}</label><select class="input" name="{{ $name }}">
+                    @if($val !== '' && ! in_array($val, $f[4], true))<option selected>{{ $val }}</option>@endif
+                    @foreach($f[4] as $opt)<option @selected($val === $opt)>{{ $opt }}</option>@endforeach</select></div>
             @elseif($kind === 'textarea')
                 <div class="field span-3"><label>{{ $label }}</label><textarea class="input" rows="4" name="{{ $name }}">{{ $val }}</textarea></div>
             @else
