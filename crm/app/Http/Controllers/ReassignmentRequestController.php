@@ -9,12 +9,10 @@ use Illuminate\Http\Request;
 
 class ReassignmentRequestController extends Controller
 {
-    /** A colleague asks to take over a customer whose follow-up has gone unactioned for 48h+. */
+    /** An employee who opened a colleague's customer (usually found by searching the number) asks the admin to move it to them. */
     public function store(Request $request, Customer $customer)
     {
-        $this->ensureCanSee($customer);
         $user = $request->user();
-        abort_unless($customer->hasStaleFollowup(), 422, 'لا يمكن طلب نقل عميل متابعته غير متأخرة 48 ساعة.');
         abort_if($customer->assigned_to === $user->id, 422, 'هذا العميل مسؤول عنه بالفعل.');
         abort_if($customer->reassignmentRequests()->where('requested_by', $user->id)->where('status', 'pending')->exists(), 422, 'لديك طلب قيد المراجعة لهذا العميل.');
 
@@ -23,7 +21,7 @@ class ReassignmentRequestController extends Controller
             'requested_by' => $user->id, 'previous_assignee' => $customer->assigned_to, 'status' => 'pending',
         ]);
         Activity::log('reassign.request', $r, "طلب نقل العميل {$customer->name} إلى {$user->name}");
-        Activity::customer($customer, 'reassign_request', "طلب {$user->name} نقل العميل إليه (متابعة متأخرة)");
+        Activity::customer($customer, 'reassign_request', "طلب {$user->name} نقل العميل إليه" . ($customer->hasStaleFollowup() ? ' (متابعة متأخرة)' : ''));
 
         return back()->with('success', 'تم إرسال طلب النقل للمدير للموافقة.');
     }

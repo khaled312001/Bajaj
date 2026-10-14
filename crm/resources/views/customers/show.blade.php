@@ -6,6 +6,7 @@
 @section('content')
 @php
     $me = auth()->user(); $isAdmin = $me->isAdmin();
+    $canEdit = $customer->editableBy($me);
     $totalDebt = $deals->sum('balance');
 @endphp
 
@@ -25,22 +26,23 @@
         @if($totalDebt > 0)<div style="margin-top:8px;font-weight:800">المديونية: <span class="num">@money($totalDebt)</span> ج.م</div>@endif</div>
 </div>
 
+@unless($canEdit)<div class="alert alert-info no-print"><i class="fa-solid fa-circle-info"></i><div>العميل ده مسجل باسم <b>{{ $customer->assignee?->name ?? $customer->creator?->name ?? 'زميل' }}</b> — تقدر تتصل بيه وتضيف متابعة أو تطلب نقله ليك، والتعديل في ملفه محتاج صلاحية من المدير.</div></div>@endunless
 <div class="btn-group mb no-print">
     <a class="btn btn-ghost" href="tel:{{ $customer->phone }}"><i class="fa-solid fa-phone" style="color:var(--blue-600)"></i> اتصال</a>
     @if($customer->whatsappLink())<a class="btn btn-ghost" target="_blank" rel="noopener noreferrer" href="{{ $customer->whatsappLink() }}"><i class="fa-brands fa-whatsapp" style="color:#16a34a"></i> واتساب</a>@endif
     <button type="button" class="btn btn-ghost no-print" data-copy-text="{{ $customer->basicInfoCopyText($isAdmin) }}"><i class="fa-solid fa-copy" style="color:var(--blue-600)"></i> نسخ بيانات العميل</button>
     @if(auth()->user()->allows('followups', 'create'))<button class="btn btn-primary" data-open="m-fu-add"><i class="fa-solid fa-calendar-plus"></i> متابعة جديدة</button>@endif
-    @if(auth()->user()->allows('deals', 'create'))<a class="btn btn-soft" href="{{ route('deals.create', $customer) }}"><i class="fa-solid fa-car"></i> صفقة جديدة</a>@endif
-    @if(auth()->user()->allows('customers', 'edit'))<a class="btn btn-ghost" href="{{ route('customers.edit', $customer) }}"><i class="fa-solid fa-pen"></i> تعديل</a>@endif
+    @if($canEdit && auth()->user()->allows('deals', 'create'))<a class="btn btn-soft" href="{{ route('deals.create', $customer) }}"><i class="fa-solid fa-car"></i> صفقة جديدة</a>@endif
+    @if($canEdit && auth()->user()->allows('customers', 'edit'))<a class="btn btn-ghost" href="{{ route('customers.edit', $customer) }}"><i class="fa-solid fa-pen"></i> تعديل</a>@endif
     @if(auth()->user()->allows('customers', 'delete'))<form method="POST" action="{{ route('customers.destroy', $customer) }}" data-confirm="حذف العميل نهائياً مع كل بياناته؟">@csrf @method('DELETE')<button class="btn btn-danger-soft"><i class="fa-solid fa-trash"></i> حذف</button></form>@endif
     @if($isAdmin)
         <button class="btn btn-ghost" data-open="m-assign"><i class="fa-solid fa-right-left" style="color:var(--purple)"></i> نقل لموظف</button>
-    @elseif($customer->assigned_to !== auth()->id() && $customer->hasStaleFollowup())
+    @elseif((int) $customer->assigned_to !== $me->id)
         @php($myRequest = $customer->reassignmentRequests()->where('requested_by', auth()->id())->where('status', 'pending')->first())
         @if($myRequest)
             <span class="badge amber"><i class="fa-solid fa-hourglass-half"></i> طلب النقل قيد المراجعة</span>
         @else
-            <form method="POST" action="{{ route('reassignments.store', $customer) }}" data-confirm="طلب نقل هذا العميل إليك بسبب تأخر متابعته 48 ساعة؟">@csrf<button class="btn btn-ghost"><i class="fa-solid fa-hand" style="color:var(--amber)"></i> طلب نقل العميل لي</button></form>
+            <form method="POST" action="{{ route('reassignments.store', $customer) }}" data-confirm="طلب نقل هذا العميل إليك؟ الطلب هيروح للمدير للموافقة">@csrf<button class="btn btn-ghost"><i class="fa-solid fa-hand" style="color:var(--amber)"></i> طلب نقل العميل لي</button></form>
         @endif
     @endif
 </div>
@@ -71,7 +73,7 @@
         <div class="card-head"><h3><i class="fa-solid fa-motorcycle"></i> المركبات المطلوبة ({{ $vehicles->count() }})</h3>
             <div class="row" style="gap:8px">
                 <span class="badge {{ $customer->status_class }}">{{ $customer->status === 'منفذة' ? 'تم التنفيذ' : ($customer->status === 'مفقودة' ? 'لم يتم التنفيذ' : 'قيد المتابعة') }}</span>
-                @if(auth()->user()->allows('customers', 'edit'))<button class="btn btn-sm btn-primary no-print" data-open="m-vehicle-add"><i class="fa-solid fa-plus"></i> إضافة مركبة</button>@endif
+                @if($canEdit && auth()->user()->allows('customers', 'edit'))<button class="btn btn-sm btn-primary no-print" data-open="m-vehicle-add"><i class="fa-solid fa-plus"></i> إضافة مركبة</button>@endif
             </div>
         </div>
         <div class="card-body">
@@ -113,10 +115,10 @@
                 <h3><i class="fa-solid fa-car"></i> {{ $d->vehicle ?: 'صفقة' }} {{ $d->model }} <span class="badge {{ $d->status_class }}">{{ $d->status }}</span> <span class="badge gray">{{ $d->pay_method }}</span></h3>
                 <div class="btn-group no-print">
                     @if($installmentCopyText)<button type="button" class="btn btn-xs btn-ghost" data-copy-text="{{ $installmentCopyText }}"><i class="fa-solid fa-copy" style="color:var(--blue-600)"></i> نسخ للتقسيط</button>@endif
-                    @if($d->installments->count())<a class="btn btn-xs btn-ghost" href="{{ route('documents.create', ['type' => 'statement', 'deal' => $d->id]) }}"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> كشف PDF</a>@endif
-                    <a class="btn btn-xs btn-ghost" href="{{ route('documents.index', ['deal' => $d->id]) }}"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> مستندات</a>
+                    @if($canEdit && $d->installments->count())<a class="btn btn-xs btn-ghost" href="{{ route('documents.create', ['type' => 'statement', 'deal' => $d->id]) }}"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> كشف PDF</a>@endif
+                    @if($canEdit)<a class="btn btn-xs btn-ghost" href="{{ route('documents.index', ['deal' => $d->id]) }}"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> مستندات</a>@endif
                     @if($d->installments->count())<a class="btn btn-xs btn-ghost" href="{{ route('deals.schedule', $d) }}"><i class="fa-solid fa-table-list"></i> جدول الأقساط</a>@endif
-                    @if(auth()->user()->allows('deals', 'edit'))<a class="btn btn-xs btn-ghost" href="{{ route('deals.edit', $d) }}"><i class="fa-solid fa-pen"></i></a>@endif
+                    @if($canEdit && auth()->user()->allows('deals', 'edit'))<a class="btn btn-xs btn-ghost" href="{{ route('deals.edit', $d) }}"><i class="fa-solid fa-pen"></i></a>@endif
                     @if(auth()->user()->allows('deals', 'delete'))<form method="POST" action="{{ route('deals.destroy', $d) }}" data-confirm="حذف الصفقة وجدول أقساطها؟">@csrf @method('DELETE')<button class="btn btn-xs btn-danger-soft"><i class="fa-solid fa-trash"></i></button></form>@endif
                 </div>
             </div>
@@ -159,20 +161,20 @@
                 <div class="divider"></div>
                 <div class="row between mb-s">
                     <b class="small"><i class="fa-solid fa-money-bill-wave" style="color:var(--green)"></i> الدفعات ({{ $d->payments->count() }}) — المحصّل <span class="num">@money($d->paid_total)</span></b>
-                    @if($d->balance > 0 && auth()->user()->allows('payments', 'create'))<button class="btn btn-sm btn-green no-print" data-open="m-pay" data-action="{{ route('deals.payments.store', $d) }}" data-fill-deal-label="{{ $d->vehicle }}" data-fill-amount="{{ $d->isInstallment() && $d->monthly_installment ? min($d->monthly_installment, $d->balance) : $d->balance }}"><i class="fa-solid fa-plus"></i> تسجيل دفعة</button>@endif
+                    @if($canEdit && $d->balance > 0 && auth()->user()->allows('payments', 'create'))<button class="btn btn-sm btn-green no-print" data-open="m-pay" data-action="{{ route('deals.payments.store', $d) }}" data-fill-deal-label="{{ $d->vehicle }}" data-fill-amount="{{ $d->isInstallment() && $d->monthly_installment ? min($d->monthly_installment, $d->balance) : $d->balance }}"><i class="fa-solid fa-plus"></i> تسجيل دفعة</button>@endif
                 </div>
                 @foreach($d->payments as $p)
                     <div class="row small" style="padding:7px 0;border-bottom:1px dashed var(--line)">
                         <span class="muted" style="width:90px">{{ $p->paid_on->format('Y/m/d') }}</span><b class="num">@money($p->amount)</b>
                         <span class="muted grow">{{ $p->method }} {{ $p->note ? '— ' . $p->note : '' }} · {{ $p->receiver?->name }}</span>
-                        @if(auth()->user()->allows('legal_documents', 'create'))<a class="btn btn-xs btn-ghost" title="إيصال PDF" href="{{ route('documents.create', ['type' => 'receipt', 'payment' => $p->id]) }}"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i></a>@endif
+                        @if($canEdit && auth()->user()->allows('legal_documents', 'create'))<a class="btn btn-xs btn-ghost" title="إيصال PDF" href="{{ route('documents.create', ['type' => 'receipt', 'payment' => $p->id]) }}"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i></a>@endif
                         @if(auth()->user()->allows('payments', 'delete'))<form method="POST" action="{{ route('payments.destroy', $p) }}" data-confirm="حذف هذه الدفعة؟">@csrf @method('DELETE')<button class="btn btn-xs btn-danger-soft"><i class="fa-solid fa-xmark"></i></button></form>@endif
                     </div>
                 @endforeach
             </div>
         </div>
     @empty
-        <div class="card"><div class="empty"><i class="fa-solid fa-car-side"></i><b>لم تُسجَّل صفقة فعلية بعد</b><a class="btn btn-primary mt" href="{{ route('deals.create', $customer) }}"><i class="fa-solid fa-plus"></i> إضافة صفقة</a></div></div>
+        <div class="card"><div class="empty"><i class="fa-solid fa-car-side"></i><b>لم تُسجَّل صفقة فعلية بعد</b>@if($canEdit && auth()->user()->allows('deals', 'create'))<a class="btn btn-primary mt" href="{{ route('deals.create', $customer) }}"><i class="fa-solid fa-plus"></i> إضافة صفقة</a>@endif</div></div>
     @endforelse
     </div>
 
@@ -222,7 +224,7 @@
     <div class="modal-head"><h3><i class="fa-solid fa-motorcycle" style="color:var(--blue-600)"></i> إضافة مركبة مطلوبة</h3><button class="modal-x" data-close="m-vehicle-add"><i class="fa-solid fa-xmark"></i></button></div>
     <form method="POST" action="{{ route('customers.vehicles.store', $customer) }}">@csrf
         <div class="modal-body">
-            <div class="field"><label>المركبة <span class="req">*</span></label><select class="input" name="vehicle" id="f-vehicle-add" required data-price-hint><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('vehicle') as $g)<option>{{ $g }}</option>@endforeach</select>
+            <div class="field"><label>المركبة <span class="req">*</span></label><select class="input" name="vehicle" id="f-vehicle-add" required data-price-hint>@include('partials.vehicle_options', ['selected' => ''])</select>
                 <div class="row between wrap" style="gap:6px;margin-top:6px"><b class="price-hint small" style="color:var(--green)"></b>@if(auth()->user()->allows('calculator'))<button type="button" class="btn btn-xs btn-soft" data-open="m-quick-calc" data-qc data-qc-from="#f-vehicle-add"><i class="fa-solid fa-calculator"></i> احسب القسط</button>@endif</div></div>
             <div class="field mt"><label>ملاحظة</label><input class="input" name="notes" maxlength="250"></div>
         </div>

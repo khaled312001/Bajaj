@@ -82,8 +82,7 @@ class FollowupController extends Controller
             'outcome.required' => 'اكتب إيه اللي تم مع العميل.',
         ]);
 
-        $customer = Customer::findOrFail($data['customer_id']);
-        $this->ensureCanSee($customer);
+        $customer = Customer::findOrFail($data['customer_id']); // any customer the employee opened, even a colleague's
         $user = $request->user();
 
         $assignee = $user->isAdmin() && ! empty($data['assigned_to']) ? (int) $data['assigned_to'] : ($customer->assigned_to ?: $user->id);

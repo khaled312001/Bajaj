@@ -136,6 +136,17 @@ class Customer extends Model
         });
     }
 
+    /**
+     * Lists show an employee only their own customers, but any customer they search for can be opened
+     * (to add a follow-up or ask for a transfer). Changing a colleague's customer needs "edit" on customers_all.
+     */
+    public function editableBy(User $user): bool
+    {
+        return $user->isAdmin() || Settings::get('agent_scope', 'own') === 'all'
+            || (int) $this->assigned_to === $user->id || (int) $this->created_by === $user->id
+            || Permissions::allows($user, 'customers_all', 'edit');
+    }
+
     public function scopeSearch(Builder $q, ?string $term): Builder
     {
         $term = trim((string) $term);

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'طلبات نقل العملاء')
 @section('heading', 'طلبات نقل العملاء')
-@section('sub', 'طلبات الموظفين لتولي عملاء متابعتهم متأخرة 48 ساعة فأكثر')
+@section('sub', 'طلبات الموظفين لتولي عملاء مسجلين باسم زملائهم')
 
 @section('content')
 <div class="card mb">

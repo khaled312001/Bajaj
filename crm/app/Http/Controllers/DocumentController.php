@@ -94,7 +94,7 @@ class DocumentController extends Controller
         $deal = ! empty($in['deal_id']) ? Deal::with('customer')->find($in['deal_id']) : null;
         $customer = $deal?->customer ?? (! empty($in['customer_id']) ? Customer::find($in['customer_id']) : null);
         if ($customer) {
-            abort_unless(Customer::visibleTo($request->user())->whereKey($customer->id)->exists(), 403);
+            abort_unless($customer->editableBy($request->user()), 403);
         }
         if ($type === 'statement' && ! $deal) {
             return back()->withInput()->withErrors(['deal_id' => 'كشف الأقساط يتطلب اختيار صفقة من ملف العميل.']);
@@ -179,7 +179,7 @@ class DocumentController extends Controller
         $payment = $request->query('payment') ? Payment::with('deal.customer')->find($request->query('payment')) : null;
         $customer = $request->query('customer') ? Customer::find($request->query('customer')) : null;
         $customer ??= $deal?->customer ?? $payment?->deal?->customer;
-        if ($customer && ! Customer::visibleTo($user)->whereKey($customer->id)->exists()) {
+        if ($customer && ! $customer->editableBy($user)) {
             abort(403);
         }
 

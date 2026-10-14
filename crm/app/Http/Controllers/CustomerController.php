@@ -14,13 +14,17 @@ use Illuminate\Validation\Rule;
 class CustomerController extends Controller
 {
     /** Filtered customer query shared by the list screen, the API and the Excel export. */
-    public function query(Request $request)
+    public function query(Request $request, bool $searchAll = false)
     {
         $user = $request->user();
-        $q = Customer::query()->visibleTo($user)->with(['creator:id,name', 'assignee:id,name,username'])
+        $q = Customer::query()->with(['creator:id,name', 'assignee:id,name,username'])
             ->withCount('deals')
             ->withSum('deals as debt', 'balance');
 
+        // employees list only their own customers; a search (from the list screen) reaches every customer
+        if (! $searchAll || mb_strlen(trim((string) $request->query('q'))) < 3) {
+            $q->visibleTo($user);
+        }
         $q->search($request->query('q'));
 
         foreach (['status', 'governorate', 'channel', 'seriousness', 'branch'] as $f) {
@@ -65,12 +69,12 @@ class CustomerController extends Controller
         $digits = Customer::normalizePhone($term);
         $isPhone = $digits && preg_match('/^\d{8,15}$/', $digits) && ! preg_match('/[^\d\s+\-()٠-٩]/u', $term);
         if ($isPhone && ! $request->query('page')) {
-            $hit = Customer::query()->visibleTo($user)->where(fn ($w) => $w->where('phone', $digits)->orWhere('alt_phone', $digits))->get();
+            $hit = Customer::query()->where(fn ($w) => $w->where('phone', $digits)->orWhere('alt_phone', $digits))->get();
             if ($hit->count() === 1) {
                 return redirect()->route('customers.show', $hit->first());
             }
         }
-        $q = $this->query($request);
+        $q = $this->query($request, true);
 
         $sort = in_array($request->query('sort'), ['name', 'created_at', 'status'], true) ? $request->query('sort') : 'created_at';
         $dir = $request->query('dir') === 'asc' ? 'asc' : 'desc';
@@ -135,7 +139,6 @@ class CustomerController extends Controller
 
     public function show(Request $request, Customer $customer)
     {
-        $this->ensureCanSee($customer);
         ViewGuard::record($request->user(), $customer);
 
         $customer->load(['creator:id,name,role', 'assignee:id,name,role']);
@@ -152,14 +155,14 @@ class CustomerController extends Controller
 
     public function edit(Customer $customer)
     {
-        $this->ensureCanSee($customer);
+        $this->ensureCanEdit($customer);
 
         return view('customers.form', ['customer' => $customer, 'staff' => $this->staff()]);
     }
 
     public function update(Request $request, Customer $customer)
     {
-        $this->ensureCanSee($customer);
+        $this->ensureCanEdit($customer);
         $data = $this->validated($request, $customer);
         $this->assertPhoneSlotsNotDuplicate($data, $customer->id);
 
@@ -205,7 +208,7 @@ class CustomerController extends Controller
     /** Add another vehicle interest to the customer file (newest shown first); also becomes the primary `interest`. */
     public function storeVehicle(Request $request, Customer $customer)
     {
-        $this->ensureCanSee($customer);
+        $this->ensureCanEdit($customer);
         $data = $request->validate([
             'vehicle' => ['required', 'string', 'max:150'],
             'notes' => ['nullable', 'string', 'max:250'],
@@ -219,7 +222,7 @@ class CustomerController extends Controller
 
     public function destroyVehicle(Customer $customer, \App\Models\CustomerVehicle $vehicle)
     {
-        $this->ensureCanSee($customer);
+        $this->ensureCanEdit($customer);
         abort_unless($vehicle->customer_id === $customer->id, 404);
         abort_unless(auth()->user()->isAdmin() || $vehicle->created_by === auth()->id(), 403);
         $vehicle->delete();
@@ -233,13 +236,13 @@ class CustomerController extends Controller
         $term = trim((string) $request->query('q'));
         abort_if(mb_strlen($term) < 2, 422, 'اكتب حرفين على الأقل');
 
-        $rows = Customer::query()->visibleTo($request->user())->search($term)->orderBy('name')->limit(8)
+        $rows = Customer::query()->search($term)->orderBy('name')->limit(8)
             ->get(['id', 'name', 'phone', 'code'])->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'phone' => $c->phone, 'code' => $c->code]);
 
         return response()->json($rows);
     }
 
-    /** Duplicate check by phone — tells the agent who already owns the customer without leaking the file. */
+    /** Duplicate check by phone — tells the agent who already owns the customer; any customer found by number can be opened. */
     public function checkPhone(Request $request)
     {
         $phone = Customer::normalizePhone($request->query('phone'));
@@ -250,10 +253,8 @@ class CustomerController extends Controller
 
         return response()->json($c ? [
             'exists' => true, 'code' => $c->code, 'by' => $c->creator?->name, 'since' => $c->created_at->format('Y/m/d'),
-            'can_open' => $open = Customer::query()->visibleTo($request->user())->whereKey($c->id)->exists(),
-            'url' => route('customers.show', $c),
-            'name' => $open ? $c->name : null, 'status' => $open ? $c->status : null, 'interest' => $open ? $c->interest : null,
-            'governorate' => $open ? $c->governorate : null, 'phone' => $open ? $c->phone : null,
+            'can_open' => true, 'url' => route('customers.show', $c),
+            'name' => $c->name, 'status' => $c->status, 'interest' => $c->interest, 'governorate' => $c->governorate, 'phone' => $c->phone,
         ] : ['exists' => false, 'new_url' => route('customers.create', ['phone' => $phone])]);
     }
 

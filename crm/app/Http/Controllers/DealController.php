@@ -17,7 +17,7 @@ class DealController extends Controller
 
     public function create(Customer $customer)
     {
-        $this->ensureCanSee($customer);
+        $this->ensureCanEdit($customer);
 
         return view('deals.form', [
             'customer' => $customer,
@@ -27,7 +27,7 @@ class DealController extends Controller
 
     public function store(Request $request, Customer $customer)
     {
-        $this->ensureCanSee($customer);
+        $this->ensureCanEdit($customer);
         $data = $this->validated($request);
         $deal = $this->service->save($customer, $data, null, $request->user());
 
@@ -39,14 +39,14 @@ class DealController extends Controller
 
     public function edit(Deal $deal)
     {
-        $this->ensureCanSee($deal->customer);
+        $this->ensureCanEdit($deal->customer);
 
         return view('deals.form', ['customer' => $deal->customer, 'deal' => $deal]);
     }
 
     public function update(Request $request, Deal $deal)
     {
-        $this->ensureCanSee($deal->customer);
+        $this->ensureCanEdit($deal->customer);
         $data = $this->validated($request);
         $this->service->save($deal->customer, $data, $deal, $request->user());
 
@@ -68,7 +68,6 @@ class DealController extends Controller
 
     public function schedule(Deal $deal)
     {
-        $this->ensureCanSee($deal->customer);
         $deal->load(['installments', 'customer', 'payments']);
         Activity::log('customer.view', $deal, 'طباعة جدول أقساط ' . $deal->customer->name);
 
@@ -77,7 +76,7 @@ class DealController extends Controller
 
     public function addPayment(Request $request, Deal $deal)
     {
-        $this->ensureCanSee($deal->customer);
+        $this->ensureCanEdit($deal->customer);
         $data = $request->validate([
             'amount' => ['required', 'numeric', 'min:0.01', 'max:999999999'],
             'paid_on' => ['required', 'date', 'before_or_equal:today'],

@@ -33,15 +33,6 @@ class CrmTest extends TestCase
         $this->agent = User::factory()->create(['username' => 'ag1', 'role' => 'agent', 'password' => 'Agent12345', 'must_change_password' => false]);
     }
 
-    /** Take away "see all customers" so the employee is limited to their own customers. */
-    private function ownCustomersOnly(User $user): void
-    {
-        $perms = \App\Support\Permissions::effectiveFor($user);
-        unset($perms['customers_all']);
-        $user->forceFill(['permissions_override' => $perms])->save();
-        \App\Support\Permissions::flush();
-    }
-
     private function customer(array $o = []): Customer
     {
         return Customer::create($o + ['name' => 'عميل تجريبي', 'phone' => '0100000' . random_int(1000, 9999), 'status' => 'مفتوحة', 'created_by' => $this->admin->id, 'assigned_to' => $this->admin->id]);
@@ -82,10 +73,12 @@ class CrmTest extends TestCase
     {
         $mine = $this->customer(['name' => 'عميلي', 'assigned_to' => $this->agent->id, 'created_by' => $this->agent->id, 'nat_id' => '29001011234567']);
         $other = $this->customer(['name' => 'عميل زميلي']);
-        $this->ownCustomersOnly($this->agent);
         $this->actingAs($this->agent);
         $this->get('/customers')->assertSee('عميلي')->assertDontSee('عميل زميلي');
-        $this->get("/customers/{$other->id}")->assertNotFound();
+        // a colleague's customer is reachable by searching, opens read-only
+        $this->get('/customers?q=' . urlencode('زميلي'))->assertSee('عميل زميلي');
+        $this->get("/customers/{$other->id}")->assertOk()->assertSee('مسجل باسم')->assertDontSee(route('customers.edit', $other));
+        $this->get("/customers/{$other->id}/edit")->assertForbidden();
         $this->get("/customers/{$mine->id}")->assertOk()->assertDontSee('29001011234567')->assertSee('4567');
         $this->assertNotEquals('29001011234567', \DB::table('customers')->where('id', $mine->id)->value('nat_id'));
     }
@@ -93,9 +86,8 @@ class CrmTest extends TestCase
     public function test_duplicate_phone_is_blocked_and_reports_owner(): void
     {
         $this->customer(['phone' => '01011112222']);
-        $this->ownCustomersOnly($this->agent);
         $this->actingAs($this->agent)->post('/customers', ['name' => 'مكرر', 'phone' => '01011112222', 'status' => 'مفتوحة'])->assertSessionHasErrors('phone');
-        $this->get('/customers/check-phone?phone=01011112222')->assertJson(['exists' => true, 'can_open' => false]);
+        $this->get('/customers/check-phone?phone=01011112222')->assertJson(['exists' => true, 'can_open' => true]);
     }
 
     public function test_agent_creates_customer_tracking_creator(): void

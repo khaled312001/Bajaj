@@ -396,10 +396,6 @@ class ExtraFeaturesTest extends TestCase
     public function test_chat_customer_search_respects_visibility_scope(): void
     {
         \App\Support\Settings::set('agent_scope', 'own');
-        $perms = Permissions::effectiveFor($this->agent);
-        unset($perms['customers_all']);
-        $this->agent->forceFill(['permissions_override' => $perms])->save();
-        Permissions::flush();
         $own = Customer::create(['name' => 'عميل الموظف الخاص', 'phone' => '01077778888', 'status' => 'مفتوحة', 'created_by' => $this->agent->id, 'assigned_to' => $this->agent->id]);
         $other = Customer::create(['name' => 'عميل غير مرئي', 'phone' => '01077779999', 'status' => 'مفتوحة', 'created_by' => $this->admin->id, 'assigned_to' => $this->admin->id]);
 

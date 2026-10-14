@@ -6,7 +6,7 @@
     $dateVal = fn ($k) => old($k, optional($deal->{$k})->format('Y-m-d'));
 @endphp
 <div class="form-grid" id="deal-fields" data-calc="{{ route('calculator.calculate') }}">
-    <div class="field"><label>المركبة</label><select class="input" name="vehicle"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('vehicle') as $x)<option @selected($v('vehicle') === $x)>{{ $x }}</option>@endforeach</select></div>
+    <div class="field"><label>المركبة</label><select class="input" name="vehicle">@include('partials.vehicle_options', ['selected' => $v('vehicle')])</select></div>
     <div class="field"><label>الموديل / السنة</label><input class="input" name="model" value="{{ $v('model') }}"></div>
     <div class="field"><label>حالة الصفقة</label><select class="input" name="{{ $st }}">@foreach(\App\Models\Customer::STATUSES as $s)<option @selected(old($st, $deal->status ?? 'مفتوحة') === $s)>{{ $s }}</option>@endforeach</select></div>
     <div class="field"><label>رقم الشاسيه</label><input class="input" name="chassis" value="{{ $v('chassis') }}" dir="ltr" style="text-align:right"></div>
