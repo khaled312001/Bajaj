@@ -7,7 +7,7 @@
 <div class="card mb">
     <div class="card-body row between wrap" style="gap:10px">
         <div class="small"><i class="fa-solid fa-link"></i> رابط النموذج العام: <a href="{{ $publicUrl }}" target="_blank" dir="ltr">{{ $publicUrl }}</a></div>
-        <a class="btn btn-xs btn-ghost" href="{{ route('settings.index') }}#"><i class="fa-solid fa-gear"></i> تعديل محتوى النموذج</a>
+        <a class="btn btn-xs btn-primary" href="{{ route('leads.form') }}"><i class="fa-solid fa-pen-to-square"></i> تعديل محتوى النموذج</a>
     </div>
 </div>
 

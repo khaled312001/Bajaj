@@ -26,6 +26,39 @@ class LeadController extends Controller
         ]);
     }
 
+    /** Admin: edit what the public form shows (on/off, title, intro, which vehicles). */
+    public function formSettings()
+    {
+        $picked = json_decode((string) Settings::get('lead_form_vehicles', ''), true);
+
+        return view('leads.form', [
+            'enabled' => Settings::get('lead_form_enabled', '1') === '1',
+            'title' => Settings::get('lead_form_title', 'اطلب مركبتك الآن'),
+            'intro' => Settings::get('lead_form_intro', 'املأ بياناتك وسيتواصل معك فريق المبيعات في أقرب وقت.'),
+            'vehicles' => Lookup::list('vehicle'),
+            'picked' => is_array($picked) ? $picked : [],
+            'prices' => \App\Models\Product::where('is_active', true)->where('price', '>', 0)->pluck('price', 'name'),
+        ]);
+    }
+
+    public function updateFormSettings(Request $request)
+    {
+        $data = $request->validate([
+            'lead_form_enabled' => ['required', Rule::in(['0', '1'])],
+            'lead_form_title' => ['nullable', 'string', 'max:120'],
+            'lead_form_intro' => ['nullable', 'string', 'max:400'],
+            'lead_form_vehicles' => ['nullable', 'array'], 'lead_form_vehicles.*' => ['string', 'max:150'],
+        ]);
+        // none ticked = the public form lists every vehicle
+        $data['lead_form_vehicles'] = empty($data['lead_form_vehicles']) ? '' : json_encode(array_values($data['lead_form_vehicles']), JSON_UNESCAPED_UNICODE);
+        foreach ($data as $k => $v) {
+            Settings::set($k, $v);
+        }
+        Activity::log('settings', null, 'تعديل محتوى نموذج طلب العملاء (الليدز)');
+
+        return back()->with('success', 'تم حفظ محتوى النموذج.');
+    }
+
     /** Vehicles offered on the public form: the ones the admin ticked in settings, or every vehicle when none is ticked. */
     public static function publicVehicles(): array
     {

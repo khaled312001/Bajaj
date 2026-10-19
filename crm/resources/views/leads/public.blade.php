@@ -39,7 +39,7 @@
                 <div class="field span-2"><label>العنوان بالتفصيل</label><input class="input" name="address" value="{{ old('address') }}" maxlength="250"></div>
             </div>
             <div class="form-actions" style="justify-content:stretch;margin-top:20px">
-                <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center;padding:13px"><i class="fa-solid fa-paper-plane"></i> إرسال الطلب</button>
+                <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center;padding:13px" @disabled(request()->boolean('preview')) @if(request()->boolean('preview')) title="معاينة فقط" @endif><i class="fa-solid fa-paper-plane"></i> إرسال الطلب</button>
             </div>
         </form>
     @endif

@@ -49,20 +49,28 @@ class ChatAndLeadFormTest extends TestCase
         // nothing picked yet: every vehicle is offered
         $this->get('/lead')->assertOk()->assertSee($hidden);
 
-        $this->actingAs($this->admin)->get('/settings')->assertOk()->assertSee('name="lead_form_vehicles[]"', false);
-        $payload = ['app_name' => 'بجاج قنا', 'agent_scope' => 'own', 'agent_idle_minutes' => 45, 'view_alert_threshold' => 40, 'view_block_threshold' => 90,
-            'lead_form_enabled' => '1', 'lead_form_vehicles' => [$a, $b], 'plans' => [['name' => 'جدول', 'table' => '12=1.2']]];
-        $this->put(route('settings.general'), $payload)->assertSessionHasNoErrors();
+        $this->actingAs($this->admin)->get('/leads')->assertOk()->assertSee(route('leads.form'));
+        $this->get('/settings')->assertOk()->assertDontSee('name="lead_form_vehicles[]"', false)->assertSee(route('leads.form'));
+        $this->get('/leads/form')->assertOk()->assertSee('name="lead_form_vehicles[]"', false)->assertSee('معاينة');
+        $payload = ['lead_form_enabled' => '1', 'lead_form_title' => 'اطلب موتوسيكلك', 'lead_form_intro' => 'مقدمة جديدة', 'lead_form_vehicles' => [$a, $b]];
+        $this->put(route('leads.form.update'), $payload)->assertSessionHasNoErrors();
 
         Settings::all(); // cache was cleared on save
         $this->assertSame([$a, $b], \App\Http\Controllers\LeadController::publicVehicles());
         auth()->logout();
         $this->flushSession(); // the settings flash would show the thank-you screen instead of the form
-        $this->get('/lead')->assertOk()->assertSee($a)->assertSee($b)->assertDontSee('>' . $hidden . '<', false);
+        $this->get('/lead')->assertOk()->assertSee('اطلب موتوسيكلك')->assertSee('مقدمة جديدة')->assertSee($a)->assertSee($b)->assertDontSee('>' . $hidden . '<', false);
 
         // un-ticking everything goes back to the full list
         unset($payload['lead_form_vehicles']);
-        $this->actingAs($this->admin)->put(route('settings.general'), $payload)->assertSessionHasNoErrors();
+        $this->actingAs($this->admin)->put(route('leads.form.update'), $payload)->assertSessionHasNoErrors();
         $this->assertSame($all, \App\Http\Controllers\LeadController::publicVehicles());
+
+        // the general settings still save without the lead form fields; employees can't open the page
+        $this->put(route('settings.general'), ['app_name' => 'بجاج قنا', 'agent_scope' => 'own', 'agent_idle_minutes' => 45, 'view_alert_threshold' => 40,
+            'view_block_threshold' => 90, 'plans' => [['name' => 'جدول', 'table' => '12=1.2']]])->assertSessionHasNoErrors();
+        $this->assertSame('اطلب موتوسيكلك', Settings::get('lead_form_title'));
+        $agent = User::factory()->create(['username' => 'ag9', 'role' => 'agent', 'must_change_password' => false]);
+        $this->actingAs($agent)->get('/leads/form')->assertForbidden();
     }
 }

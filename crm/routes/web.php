@@ -178,6 +178,8 @@ Route::middleware(['auth', 'guard.app'])->group(function () {
         Route::get('/vehicles/export', [VehicleController::class, 'export'])->name('vehicles.export');
 
         Route::get('/leads', [LeadController::class, 'index'])->name('leads.index');
+        Route::get('/leads/form', [LeadController::class, 'formSettings'])->name('leads.form');
+        Route::put('/leads/form', [LeadController::class, 'updateFormSettings'])->name('leads.form.update');
         Route::post('/leads/assign', [LeadController::class, 'assign'])->name('leads.assign');
         Route::post('/leads/delete', [LeadController::class, 'destroy'])->name('leads.destroy');
         Route::post('/leads/{lead}/reject', [LeadController::class, 'reject'])->name('leads.reject');
