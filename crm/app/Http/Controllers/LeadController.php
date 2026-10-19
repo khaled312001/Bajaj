@@ -22,7 +22,18 @@ class LeadController extends Controller
         return view('leads.public', [
             'title' => Settings::get('lead_form_title', 'اطلب مركبتك الآن'),
             'intro' => Settings::get('lead_form_intro', 'املأ بياناتك وسيتواصل معك فريق المبيعات في أقرب وقت.'),
+            'vehicles' => self::publicVehicles(),
         ]);
+    }
+
+    /** Vehicles offered on the public form: the ones the admin ticked in settings, or every vehicle when none is ticked. */
+    public static function publicVehicles(): array
+    {
+        $all = Lookup::list('vehicle');
+        $picked = json_decode((string) Settings::get('lead_form_vehicles', ''), true);
+        $shown = is_array($picked) ? array_values(array_intersect($all, $picked)) : [];
+
+        return $shown ?: $all;
     }
 
     public function publicStore(Request $request)

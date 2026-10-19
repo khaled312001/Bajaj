@@ -19,12 +19,12 @@ class Conversation extends Model
 
     public function userOne(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'user_one_id');
+        return $this->belongsTo(User::class, 'user_one_id')->withTrashed();
     }
 
     public function userTwo(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'user_two_id');
+        return $this->belongsTo(User::class, 'user_two_id')->withTrashed();
     }
 
     public function messages(): HasMany
@@ -37,9 +37,12 @@ class Conversation extends Model
         return $q->where('user_one_id', $user->id)->orWhere('user_two_id', $user->id);
     }
 
+    /** The other participant; a deleted account still shows by name, a missing one as "مستخدم محذوف". */
     public function otherUser(User $me): User
     {
-        return $this->user_one_id === $me->id ? $this->userTwo : $this->userOne;
+        $other = (int) $this->user_one_id === $me->id ? $this->userTwo : $this->userOne;
+
+        return $other ?? new User(['name' => 'مستخدم محذوف', 'role' => 'agent']);
     }
 
     /** Find or create the single conversation between two users, regardless of argument order. */

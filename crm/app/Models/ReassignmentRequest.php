@@ -22,16 +22,16 @@ class ReassignmentRequest extends Model
 
     public function requester(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'requested_by');
+        return $this->belongsTo(User::class, 'requested_by')->withTrashed();
     }
 
     public function previousAssignee(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'previous_assignee');
+        return $this->belongsTo(User::class, 'previous_assignee')->withTrashed();
     }
 
     public function decider(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'decided_by');
+        return $this->belongsTo(User::class, 'decided_by')->withTrashed();
     }
 }

@@ -34,7 +34,7 @@
             <div class="form-grid cols-2">
                 <div class="field span-2"><label>الاسم <span class="req">*</span></label><input class="input" name="name" value="{{ old('name') }}" required maxlength="150"></div>
                 <div class="field span-2"><label>رقم الهاتف <span class="req">*</span></label><input class="input" name="phone" value="{{ old('phone') }}" required inputmode="tel" dir="ltr" style="text-align:right" placeholder="01xxxxxxxxx"></div>
-                <div class="field span-2"><label>المركبة المطلوبة</label><select class="input" name="vehicle"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('vehicle') as $g)<option @selected(old('vehicle') === $g)>{{ $g }}</option>@endforeach</select></div>
+                <div class="field span-2"><label>المركبة المطلوبة</label><select class="input" name="vehicle"><option value="">— اختر —</option>@foreach($vehicles as $g)<option @selected(old('vehicle') === $g)>{{ $g }}</option>@endforeach</select></div>
                 @include('partials.geo_fields', ['govValue' => old('governorate'), 'centerValue' => old('district')])
                 <div class="field span-2"><label>العنوان بالتفصيل</label><input class="input" name="address" value="{{ old('address') }}" maxlength="250"></div>
             </div>

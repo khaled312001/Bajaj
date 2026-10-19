@@ -461,3 +461,5 @@ dialog.dlg { max-height: 92vh; overflow-y: auto; }
   .bubble { max-width: 82%; }
   .chat-back { display: grid; place-items: center; }
 }
+
+.lead-veh-box {display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 14px;max-height:320px;overflow:auto;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg-soft, #f8fafc)}

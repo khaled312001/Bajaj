@@ -61,6 +61,21 @@
             </div>
             <div class="field span-2"><label>عنوان النموذج</label><input class="input" name="lead_form_title" value="{{ $s('lead_form_title', 'اطلب مركبتك الآن') }}" maxlength="120"></div>
             <div class="field span-3"><label>مقدمة النموذج</label><textarea class="input" rows="2" name="lead_form_intro" maxlength="400">{{ $s('lead_form_intro', 'املأ بياناتك وسيتواصل معك فريق المبيعات في أقرب وقت.') }}</textarea></div>
+            @php($leadPicked = is_array(old('lead_form_vehicles')) ? old('lead_form_vehicles') : (json_decode((string) ($settings['lead_form_vehicles'] ?? ''), true) ?: []))
+            <div class="field span-3" id="lead-vehicles">
+                <label>المنتجات اللي تظهر في خانة «المركبة المطلوبة» في النموذج</label>
+                <div class="row wrap" style="gap:6px;margin-bottom:6px">
+                    <button type="button" class="btn btn-xs btn-ghost" onclick="document.querySelectorAll('.lead-veh').forEach(c=>c.checked=true)">تحديد الكل</button>
+                    <button type="button" class="btn btn-xs btn-ghost" onclick="document.querySelectorAll('.lead-veh').forEach(c=>c.checked=false)">إلغاء التحديد</button>
+                    <span class="small muted">المحدد حالياً: {{ $leadPicked ? count(array_intersect(\App\Models\Lookup::list('vehicle'), $leadPicked)) : 'الكل' }}</span>
+                </div>
+                <div class="lead-veh-box">
+                    @foreach(\App\Models\Lookup::list('vehicle') as $v)
+                        <label class="check"><input type="checkbox" class="lead-veh" name="lead_form_vehicles[]" value="{{ $v }}" @checked(in_array($v, $leadPicked, true))> {{ $v }}</label>
+                    @endforeach
+                </div>
+                <div class="hint">علّم المنتجات اللي عايزها تظهر للعميل بس. لو مفيش ولا واحد متعلّم، النموذج بيعرض كل المركبات المسجلة.</div>
+            </div>
         </div>
         <div class="form-actions"><button class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> حفظ الإعدادات</button></div>
     </div>
