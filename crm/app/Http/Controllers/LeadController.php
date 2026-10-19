@@ -7,6 +7,7 @@ use App\Models\Lead;
 use App\Models\Lookup;
 use App\Models\User;
 use App\Support\Activity;
+use App\Support\LeadForm;
 use App\Support\Settings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,7 @@ class LeadController extends Controller
             'title' => Settings::get('lead_form_title', 'اطلب مركبتك الآن'),
             'intro' => Settings::get('lead_form_intro', 'املأ بياناتك وسيتواصل معك فريق المبيعات في أقرب وقت.'),
             'vehicles' => self::publicVehicles(),
+            'fields' => LeadForm::fields(),
         ]);
     }
 
@@ -38,6 +40,7 @@ class LeadController extends Controller
             'vehicles' => Lookup::list('vehicle'),
             'picked' => is_array($picked) ? $picked : [],
             'prices' => \App\Models\Product::where('is_active', true)->where('price', '>', 0)->pluck('price', 'name'),
+            'fields' => LeadForm::fields(),
         ]);
     }
 
@@ -48,9 +51,17 @@ class LeadController extends Controller
             'lead_form_title' => ['nullable', 'string', 'max:120'],
             'lead_form_intro' => ['nullable', 'string', 'max:400'],
             'lead_form_vehicles' => ['nullable', 'array'], 'lead_form_vehicles.*' => ['string', 'max:150'],
+            'lead_form_fields' => ['required', 'json', 'max:60000'],
         ]);
         // none ticked = the public form lists every vehicle
         $data['lead_form_vehicles'] = empty($data['lead_form_vehicles']) ? '' : json_encode(array_values($data['lead_form_vehicles']), JSON_UNESCAPED_UNICODE);
+        $fields = LeadForm::normalize((array) json_decode($data['lead_form_fields'], true));
+        foreach ($fields as $f) {
+            if ($f['type'] === 'select' && ! $f['options']) {
+                return back()->withInput()->withErrors(['lead_form_fields' => "اكتب اختيارات الحقل «{$f['label']}» (كل اختيار في سطر)."]);
+            }
+        }
+        $data['lead_form_fields'] = json_encode($fields, JSON_UNESCAPED_UNICODE);
         foreach ($data as $k => $v) {
             Settings::set($k, $v);
         }
@@ -72,20 +83,25 @@ class LeadController extends Controller
     public function publicStore(Request $request)
     {
         abort_if(Settings::get('lead_form_enabled', '1') === '0', 404);
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:150'],
-            'phone' => ['required', 'string', 'max:20'],
-            'vehicle' => ['nullable', 'string', 'max:150'],
-            'governorate' => ['nullable', 'string', 'max:100'],
-            'district' => ['nullable', 'string', 'max:120'],
-            'address' => ['nullable', 'string', 'max:250'],
-        ], [], [
-            'name' => 'الاسم', 'phone' => 'رقم الهاتف',
-        ]);
-        $phone = Customer::normalizePhone($data['phone']);
-        abort_unless($phone && preg_match('/^\d{8,15}$/', $phone), 422, 'رقم الهاتف غير صالح.');
-        $data['phone'] = $phone;
-        $data['ip'] = $request->ip();
+        $fields = LeadForm::fields();
+        [$rules, $names] = LeadForm::rules($fields);
+        $input = $request->validate($rules, [], $names);
+        $phone = Customer::normalizePhone($input['phone']);
+        if (! $phone || ! preg_match('/^\d{8,15}$/', $phone)) {
+            return back()->withInput()->withErrors(['phone' => 'رقم الهاتف غير صالح.']);
+        }
+
+        // built-in fields go to their own columns, the admin's extra fields are kept with their labels
+        $data = ['phone' => $phone, 'ip' => $request->ip(), 'extra' => []];
+        foreach ($fields as $f) {
+            $value = $input[$f['key']] ?? null;
+            if ($f['builtin']) {
+                $data[$f['key']] = $f['key'] === 'phone' ? $phone : $value;
+            } elseif ($value !== null && $value !== '') {
+                $data['extra'][] = ['label' => $f['label'], 'value' => (string) $value];
+            }
+        }
+        $data['extra'] = $data['extra'] ?: null;
 
         Lead::create($data);
 
@@ -135,7 +151,7 @@ class LeadController extends Controller
                     $customer = Customer::create([
                         'name' => $lead->name, 'phone' => $lead->phone, 'interest' => $lead->vehicle,
                         'governorate' => $lead->governorate, 'district' => $lead->district, 'address' => $lead->address,
-                        'status' => 'مفتوحة', 'notes' => 'من طلبات النموذج العام بتاريخ ' . $lead->created_at->format('Y/m/d'),
+                        'status' => 'مفتوحة', 'notes' => trim('من طلبات النموذج العام بتاريخ ' . $lead->created_at->format('Y/m/d') . "\n" . $lead->extraText()),
                         'created_by' => $admin->id, 'assigned_to' => $employee->id,
                     ]);
                     $customer->assignTo($employee->id, $admin);

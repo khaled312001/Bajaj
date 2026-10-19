@@ -5,6 +5,7 @@
 
 @section('content')
 @php($picked = is_array(old('lead_form_vehicles')) ? old('lead_form_vehicles') : $picked)
+@php($editorFields = json_decode((string) old('lead_form_fields', ''), true) ?: $fields)
 <div class="card mb">
     <div class="card-body row between wrap" style="gap:10px">
         <div class="small"><i class="fa-solid fa-link"></i> رابط النموذج: <a href="{{ route('lead.public') }}" target="_blank" dir="ltr">{{ route('lead.public') }}</a>
@@ -24,6 +25,17 @@
                 </div>
                 <div class="field span-3"><label>عنوان النموذج</label><input class="input" name="lead_form_title" value="{{ old('lead_form_title', $title) }}" maxlength="120"></div>
                 <div class="field span-3"><label>مقدمة النموذج</label><textarea class="input" rows="3" name="lead_form_intro" maxlength="400">{{ old('lead_form_intro', $intro) }}</textarea></div>
+
+                <div class="field span-3" id="lead-fields">
+                    <label>حقول النموذج <span class="small muted">(بالترتيب اللي هتظهر بيه — حرّك بالأسهم)</span></label>
+                    <div id="lf-list" class="lf-list"></div>
+                    <div class="row wrap" style="gap:6px;margin-top:8px">
+                        <button type="button" class="btn btn-xs btn-primary" id="lf-add"><i class="fa-solid fa-plus"></i> إضافة حقل</button>
+                        <span id="lf-restore" class="row wrap" style="gap:6px"></span>
+                    </div>
+                    <input type="hidden" name="lead_form_fields" id="lf-json">
+                    <div class="hint">الاسم ورقم الهاتف أساسيين ومينفعش يتشالوا (تقدر تغيّر اسمهم). الحقول الجديدة إجاباتها بتظهر في صفحة الليدز وبتتنقل لملاحظات العميل لما يتحوّل.</div>
+                </div>
 
                 <div class="field span-3" id="lead-vehicles">
                     <label>المنتجات اللي تظهر في خانة «المركبة المطلوبة»</label>
@@ -56,6 +68,74 @@
 
 @push('scripts')
 <script>
+(function () {
+    const TYPES = @json(\App\Support\LeadForm::TYPES);
+    const BUILTIN = @json(collect(\App\Support\LeadForm::BUILTIN)->map(fn ($b) => $b['label']));
+    const LOCKED = @json(\App\Support\LeadForm::LOCKED);
+    const KIND = {phone: 'رقم هاتف', vehicle: 'قائمة المركبات (من تحت)', governorate: 'قائمة المحافظات', district: 'قائمة المراكز (بعد المحافظة)'};
+    let fields = @json($editorFields);
+    const list = document.getElementById('lf-list');
+    const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+
+    function render() {
+        list.innerHTML = fields.map((f, i) => {
+            const locked = LOCKED.includes(f.key), builtin = f.key in BUILTIN;
+            const type = builtin
+                ? `<span class="badge gray">${esc(KIND[f.type] || 'نص')}</span>`
+                : `<select class="input lf-type">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}" ${f.type === k ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
+            return `<div class="lf-row" data-i="${i}">
+                <div class="lf-move"><button type="button" class="btn btn-xs btn-ghost lf-up" ${i ? '' : 'disabled'} title="لفوق">▲</button><button type="button" class="btn btn-xs btn-ghost lf-down" ${i < fields.length - 1 ? '' : 'disabled'} title="لتحت">▼</button></div>
+                <div class="lf-main">
+                    <div class="lf-line">
+                        <input class="input lf-label" value="${esc(f.label)}" maxlength="80" placeholder="اسم الحقل">
+                        ${type}
+                    </div>
+                    <div class="lf-line">
+                        ${['date', 'governorate', 'district'].includes(f.type) ? '' : `<input class="input lf-ph" value="${esc(f.placeholder)}" maxlength="120" placeholder="${['select', 'vehicle'].includes(f.type) ? 'أول سطر في القائمة (اختياري)' : 'نص توضيحي جوه الخانة (اختياري)'}">`}
+                        <select class="input lf-width"><option value="full" ${f.width === 'full' ? 'selected' : ''}>عرض كامل</option><option value="half" ${f.width === 'half' ? 'selected' : ''}>نص العرض</option></select>
+                        <label class="check"><input type="checkbox" class="lf-req" ${f.required ? 'checked' : ''} ${locked ? 'disabled' : ''}> إجباري</label>
+                    </div>
+                    ${f.type === 'select' ? `<textarea class="input lf-opts" rows="3" placeholder="الاختيارات — كل اختيار في سطر">${esc((f.options || []).join('\n'))}</textarea>` : ''}
+                </div>
+                ${locked ? '<span class="lf-lock" title="حقل أساسي"><i class="fa-solid fa-lock"></i></span>' : '<button type="button" class="btn btn-xs btn-danger-soft lf-del" title="حذف الحقل"><i class="fa-solid fa-trash"></i></button>'}
+            </div>`;
+        }).join('');
+        const missing = Object.keys(BUILTIN).filter((k) => !fields.some((f) => f.key === k));
+        document.getElementById('lf-restore').innerHTML = missing.map((k) => `<button type="button" class="btn btn-xs btn-ghost lf-back" data-key="${k}"><i class="fa-solid fa-rotate-left"></i> رجّع «${esc(BUILTIN[k])}»</button>`).join('');
+    }
+    function read() {
+        list.querySelectorAll('.lf-row').forEach((row) => {
+            const f = fields[row.dataset.i];
+            f.label = row.querySelector('.lf-label').value;
+            f.placeholder = row.querySelector('.lf-ph') ? row.querySelector('.lf-ph').value : '';
+            f.width = row.querySelector('.lf-width').value;
+            f.required = row.querySelector('.lf-req').checked;
+            if (row.querySelector('.lf-type')) f.type = row.querySelector('.lf-type').value;
+            if (row.querySelector('.lf-opts')) f.options = row.querySelector('.lf-opts').value.split('\n').map((o) => o.trim()).filter(Boolean);
+        });
+    }
+    list.addEventListener('click', (e) => {
+        const row = e.target.closest('.lf-row'); if (!row) return;
+        const i = +row.dataset.i; read();
+        if (e.target.closest('.lf-up') && i > 0) [fields[i - 1], fields[i]] = [fields[i], fields[i - 1]];
+        else if (e.target.closest('.lf-down') && i < fields.length - 1) [fields[i + 1], fields[i]] = [fields[i], fields[i + 1]];
+        else if (e.target.closest('.lf-del')) { if (!confirm('حذف الحقل «' + fields[i].label + '»؟')) return; fields.splice(i, 1); }
+        else return;
+        render();
+    });
+    list.addEventListener('change', (e) => { if (e.target.classList.contains('lf-type')) { read(); render(); } });
+    document.getElementById('lf-add').addEventListener('click', () => {
+        read(); fields.push({key: '', type: 'text', label: 'حقل جديد', placeholder: '', required: false, width: 'full', options: []}); render();
+        const last = list.lastElementChild.querySelector('.lf-label'); last.focus(); last.select();
+    });
+    document.getElementById('lf-restore').addEventListener('click', (e) => {
+        const b = e.target.closest('.lf-back'); if (!b) return;
+        read(); fields.push({key: b.dataset.key, label: BUILTIN[b.dataset.key], placeholder: '', required: false, width: b.dataset.key === 'governorate' || b.dataset.key === 'district' ? 'half' : 'full', options: []}); render();
+    });
+    list.closest('form').addEventListener('submit', () => { read(); document.getElementById('lf-json').value = JSON.stringify(fields); });
+    render();
+})();
+
 function leadVehCount() {
     const n = document.querySelectorAll('.lead-veh:checked').length;
     document.getElementById('lead-veh-count').textContent = n ? 'المتعلّم: ' + n : 'هيظهر الكل';

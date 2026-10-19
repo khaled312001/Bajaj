@@ -32,11 +32,28 @@
         <form method="POST" action="{{ route('lead.store') }}">
             @csrf
             <div class="form-grid cols-2">
-                <div class="field span-2"><label>الاسم <span class="req">*</span></label><input class="input" name="name" value="{{ old('name') }}" required maxlength="150"></div>
-                <div class="field span-2"><label>رقم الهاتف <span class="req">*</span></label><input class="input" name="phone" value="{{ old('phone') }}" required inputmode="tel" dir="ltr" style="text-align:right" placeholder="01xxxxxxxxx"></div>
-                <div class="field span-2"><label>المركبة المطلوبة</label><select class="input" name="vehicle"><option value="">— اختر —</option>@foreach($vehicles as $g)<option @selected(old('vehicle') === $g)>{{ $g }}</option>@endforeach</select></div>
-                @include('partials.geo_fields', ['govValue' => old('governorate'), 'centerValue' => old('district')])
-                <div class="field span-2"><label>العنوان بالتفصيل</label><input class="input" name="address" value="{{ old('address') }}" maxlength="250"></div>
+                @php($district = collect($fields)->firstWhere('key', 'district'))
+                @foreach($fields as $f)
+                    @continue($f['key'] === 'district')
+                    @if($f['key'] === 'governorate')
+                        {{-- the مركز list follows the governorate, so it always sits right after it --}}
+                        <div class="field {{ $f['width'] === 'full' ? 'span-2' : '' }}">
+                            <label>{{ $f['label'] }} @if($f['required'])<span class="req">*</span>@endif</label>
+                            <select class="input geo-gov" name="governorate" @required($f['required'])>
+                                <option value="">{{ $f['placeholder'] ?: '— اختر —' }}</option>
+                                @foreach(\App\Support\EgyptGeo::all() as $g)<option @selected(old('governorate') === $g)>{{ $g }}</option>@endforeach
+                            </select>
+                        </div>
+                        @if($district)
+                            <div class="field {{ $district['width'] === 'full' ? 'span-2' : '' }}">
+                                <label>{{ $district['label'] }} @if($district['required'])<span class="req">*</span>@endif</label>
+                                <select class="input geo-center" name="district" data-current="{{ old('district') }}" @required($district['required'])><option value="">— اختر المحافظة أولاً —</option></select>
+                            </div>
+                        @endif
+                    @else
+                        @include('leads._field', ['f' => $f, 'vehicles' => $vehicles])
+                    @endif
+                @endforeach
             </div>
             <div class="form-actions" style="justify-content:stretch;margin-top:20px">
                 <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center;padding:13px" @disabled(request()->boolean('preview')) @if(request()->boolean('preview')) title="معاينة فقط" @endif><i class="fa-solid fa-paper-plane"></i> إرسال الطلب</button>

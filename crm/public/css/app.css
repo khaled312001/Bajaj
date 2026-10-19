@@ -466,3 +466,12 @@ dialog.dlg { max-height: 92vh; overflow-y: auto; }
 .lead-form-layout {display:grid;grid-template-columns:minmax(0,1fr) clamp(300px, 42%, 430px);gap:16px;align-items:start}
 .lead-preview {width:100%;height:900px;border:0;border-top:1px solid var(--line-2);display:block;overflow:hidden}
 @media (max-width: 760px) { .lead-form-layout {grid-template-columns:1fr} }
+.lf-list {display:flex;flex-direction:column;gap:8px}
+.lf-row {display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.lf-move {display:flex;flex-direction:column;gap:4px}
+.lf-move .btn {padding:2px 8px;line-height:1.2}
+.lf-main {flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.lf-line {display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lf-line .input {flex:1;min-width:140px}
+.lf-line .lf-width, .lf-line .lf-type {flex:0 0 auto;min-width:0;width:auto}
+.lf-lock {color:var(--muted);padding:6px 8px}

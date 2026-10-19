@@ -97,6 +97,10 @@ class CustomerController extends Controller
     {
         $phone = Customer::normalizePhone($request->query('phone'));
         $prefill = $request->only(['name', 'interest', 'governorate', 'district', 'address']);
+        $lead = $request->filled('lead_id') ? \App\Models\Lead::find((int) $request->query('lead_id')) : null;
+        if ($lead && $lead->extra) {
+            $prefill['notes'] = $lead->extraText();
+        }
 
         return view('customers.form', [
             'customer' => new Customer(array_filter($prefill) + ['status' => 'مفتوحة', 'phone' => $phone]),

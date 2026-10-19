@@ -52,7 +52,7 @@ class ChatAndLeadFormTest extends TestCase
         $this->actingAs($this->admin)->get('/leads')->assertOk()->assertSee(route('leads.form'));
         $this->get('/settings')->assertOk()->assertDontSee('name="lead_form_vehicles[]"', false)->assertSee(route('leads.form'));
         $this->get('/leads/form')->assertOk()->assertSee('name="lead_form_vehicles[]"', false)->assertSee('معاينة');
-        $payload = ['lead_form_enabled' => '1', 'lead_form_title' => 'اطلب موتوسيكلك', 'lead_form_intro' => 'مقدمة جديدة', 'lead_form_vehicles' => [$a, $b]];
+        $payload = ['lead_form_enabled' => '1', 'lead_form_title' => 'اطلب موتوسيكلك', 'lead_form_intro' => 'مقدمة جديدة', 'lead_form_vehicles' => [$a, $b], 'lead_form_fields' => json_encode(\App\Support\LeadForm::defaults())];
         $this->put(route('leads.form.update'), $payload)->assertSessionHasNoErrors();
 
         Settings::all(); // cache was cleared on save

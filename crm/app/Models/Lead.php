@@ -11,13 +11,19 @@ class Lead extends Model
     public const STATUSES = ['new', 'assigned', 'converted', 'rejected'];
 
     protected $fillable = [
-        'name', 'phone', 'vehicle', 'governorate', 'district', 'address',
+        'name', 'phone', 'vehicle', 'governorate', 'district', 'address', 'extra',
         'status', 'assigned_to', 'customer_id', 'ip', 'converted_at',
     ];
 
     protected function casts(): array
     {
-        return ['converted_at' => 'datetime'];
+        return ['converted_at' => 'datetime', 'extra' => 'array'];
+    }
+
+    /** The answers to the admin's custom form fields, one "label: value" per line. */
+    public function extraText(): string
+    {
+        return collect($this->extra ?? [])->map(fn ($e) => ($e['label'] ?? '') . ': ' . ($e['value'] ?? ''))->implode("\n");
     }
 
     public function assignee(): BelongsTo

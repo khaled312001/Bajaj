@@ -43,7 +43,8 @@
             @forelse($leads as $l)
                 <tr>
                     <td><input class="lead-chk" type="checkbox" value="{{ $l->id }}" data-converted="{{ $l->status === 'converted' ? 1 : 0 }}"></td>
-                    <td><b>{{ $l->name }}</b></td>
+                    <td><b>{{ $l->name }}</b>@if($l->address)<div class="small muted">{{ $l->address }}</div>@endif
+                        @foreach($l->extra ?? [] as $e)<div class="small"><span class="muted">{{ $e['label'] ?? '' }}:</span> {{ $e['value'] ?? '' }}</div>@endforeach</td>
                     <td class="num">{{ $l->phone }}</td>
                     <td>{{ $l->vehicle ?: '—' }}</td>
                     <td>{{ $l->governorate ?: '—' }}{{ $l->district ? ' — ' . $l->district : '' }}</td>
