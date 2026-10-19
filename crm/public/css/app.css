@@ -463,6 +463,6 @@ dialog.dlg { max-height: 92vh; overflow-y: auto; }
 }
 
 .lead-veh-box {display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 14px;max-height:320px;overflow:auto;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg-soft, #f8fafc)}
-.lead-form-layout {display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;align-items:start}
-.lead-preview {width:100%;height:680px;border:0;border-top:1px solid var(--line-2);display:block}
-@media (max-width: 1000px) { .lead-form-layout {grid-template-columns:1fr} .lead-preview {height:560px} }
+.lead-form-layout {display:grid;grid-template-columns:minmax(0,1fr) clamp(300px, 42%, 430px);gap:16px;align-items:start}
+.lead-preview {width:100%;height:900px;border:0;border-top:1px solid var(--line-2);display:block;overflow:hidden}
+@media (max-width: 760px) { .lead-form-layout {grid-template-columns:1fr} }

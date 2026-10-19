@@ -79,6 +79,7 @@
             @endif
             <a href="{{ route('password.edit') }}" class="nav-link {{ request()->routeIs('password.*') ? 'active' : '' }}"><i class="fa-solid fa-key"></i> تغيير كلمة المرور</a>
         </nav>
+        <script>(function () { var n = document.querySelector('.sidebar-nav'), a = n && n.querySelector('.nav-link.active'); if (!a) return; var r = a.getBoundingClientRect(), b = n.getBoundingClientRect(); if (r.top < b.top || r.bottom > b.bottom - 8) n.scrollTop += r.top - b.top - (n.clientHeight - r.height) / 2; })();</script>
         <div class="sidebar-user">
             <div class="avatar {{ $isAdmin ? '' : 'agent' }}">{{ $me->initials }}</div>
             <div class="who"><b>{{ $me->name }}</b><span>{{ $me->role_label }}</span></div>

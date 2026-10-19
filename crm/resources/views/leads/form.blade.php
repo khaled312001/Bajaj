@@ -46,9 +46,10 @@
         </div>
     </form>
 
-    <div class="card">
+    <div class="card lead-preview-card">
         <div class="card-head"><h3><i class="fa-solid fa-eye"></i> معاينة زي ما العميل بيشوفه</h3></div>
-        <iframe src="{{ route('lead.public') }}?preview=1" class="lead-preview" title="معاينة النموذج"></iframe>
+        <iframe src="{{ route('lead.public') }}?preview=1" class="lead-preview" title="معاينة النموذج" scrolling="no"
+            onload="try { var d = this.contentDocument; d.body.style.minHeight = '0'; this.style.height = d.body.scrollHeight + 'px'; } catch (e) {}"></iframe>
         <div class="card-pad small muted">المعاينة بتتحدث بعد الحفظ.</div>
     </div>
 </div>
