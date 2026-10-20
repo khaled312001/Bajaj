@@ -119,19 +119,29 @@
 @break
 
 @case('bulk_receipt')
-    <p class="text serif">أقر أنا / <b>{{ $v('customer_name') }}</b> — رقم قومي: {{ $v('nat_id') }}<br>المقيم / {{ $v('address') }}</p>
-    <p class="text serif">بأنني استلمت من شركة <b>{{ $co }}</b> المركبات التالي بياناتها:</p>
-    <table class="data"><thead><tr><th>#</th><th>النوع</th><th>الموديل</th><th>اللون</th><th>الشاسيه</th><th>الموتور</th></tr></thead><tbody>
-    @foreach(preg_split('/\R+/', trim((string) ($d['items'] ?? ''))) as $line)
-        @continue(trim($line) === '')
-        @php
-            $c = array_pad(array_map('trim', explode('|', $line)), 5, '');
-        @endphp
-        <tr class="{{ $loop->even ? 'alt' : '' }}"><td class="n">{{ $loop->iteration }}</td><td class="n">{{ $c[0] }}</td><td class="n">{{ $c[1] }}</td><td class="n">{{ $c[2] }}</td><td class="n" dir="ltr">{{ $c[3] }}</td><td class="n" dir="ltr">{{ $c[4] }}</td></tr>
+    {{-- documents issued before the "to deliver to" wording reprint exactly as they were signed --}}
+    @php($legacy = ! array_key_exists('to_name', $d))
+    @php($rows = array_values(array_filter(preg_split('/\R+/', trim((string) ($d['items'] ?? ''))), fn ($l) => trim($l) !== '')))
+    <p class="text serif" style="margin-bottom:{{ 2 * $gap }}mm">أقر أنا / <b>{{ $v('customer_name') }}</b> — رقم قومي: {{ $v('nat_id') }}<br>المقيم / {{ $v('address') }}<br>بأنني استلمت من شركة <b>{{ $co }}</b> المركبات التالي بياناتها:</p>
+    <table class="data" style="margin-bottom:{{ 2 * $gap }}mm"><thead><tr><th>#</th><th>النوع</th><th>الموديل</th><th>اللون</th><th>الشاسيه</th><th>الموتور</th></tr></thead><tbody>
+    @foreach($rows as $line)
+        @php($c = array_pad(array_map('trim', explode('|', $line)), 5, ''))
+        <tr class="{{ $loop->even ? 'alt' : '' }}"><td class="n" style="padding:{{ 1.3 * $gap }}mm 2mm">{{ $loop->iteration }}</td><td class="n" style="padding:{{ 1.3 * $gap }}mm 2mm">{{ $c[0] }}</td><td class="n" style="padding:{{ 1.3 * $gap }}mm 2mm">{{ $c[1] }}</td><td class="n" style="padding:{{ 1.3 * $gap }}mm 2mm">{{ $c[2] }}</td><td class="n" dir="ltr" style="padding:{{ 1.3 * $gap }}mm 2mm">{{ $c[3] }}</td><td class="n" dir="ltr" style="padding:{{ 1.3 * $gap }}mm 2mm">{{ $c[4] }}</td></tr>
     @endforeach</tbody></table>
-    <p class="text serif">تاريخ الشراء / {{ $date('purchase_date') }}</p>
-    <p class="text serif">وأني استلمت جميع الملحقات الخاصة بها ولا يحق لي أو للغير الرجوع على الشركة، وأتحمل كافة التبعات القانونية والمالية في حالة رجوع الغير على الشركة فيما يخص المركبات موضوع هذا الإقرار.</p>
-    {!! $ack($v('customer_name')) !!}
+    @if($legacy)
+        <p class="text serif">تاريخ الشراء / {{ $date('purchase_date') }}</p>
+        <p class="text serif">وأني استلمت جميع الملحقات الخاصة بها ولا يحق لي أو للغير الرجوع على الشركة، وأتحمل كافة التبعات القانونية والمالية في حالة رجوع الغير على الشركة فيما يخص المركبات موضوع هذا الإقرار.</p>
+        {!! $ack($v('customer_name')) !!}
+    @else
+        <p class="text serif" style="margin-top:0">وأني استلمت جميع الملحقات الخاصة بها، وذلك لتوصيلها للسيد / <b>{{ $v('to_name') }}</b><br>رقم قومي: {{ $v('to_nat') }} — المقيم / {{ $v('to_address') }}<br>وذلك على سبيل الأمانة، وفي حالة عدم تسليمها أكون خائناً للأمانة وأتحمل كافة المسؤوليات القانونية، وذلك بدون أدنى مسؤولية على الشركة.</p>
+        {{-- delivered by (right) | the person acknowledging (middle) | date and thumbprint further to the left --}}
+        @php($cell = fn (array $lines) => '<table style="width:100%">' . implode('', array_map(fn ($t) => '<tr><td style="padding:' . (1.6 * $gap) . 'mm 0;font-size:12pt;font-weight:bold">' . $t . '</td></tr>', $lines)) . '</table>')
+        <table style="width:100%;margin-top:{{ 5 * $gap }}mm"><tr>
+            <td style="width:33%;vertical-align:top">{!! $cell(['تم التسليم بمعرفة :', 'الاسم : ' . e($v('delivered_by')), 'التوقيع : ................']) !!}</td>
+            <td style="width:37%;vertical-align:top">{!! $cell(array_merge(['وهذا إقرار مني بذلك', 'المستلم : ' . e($v('customer_name'))], ! empty($d['phone']) ? ['الموبايل : ' . e($d['phone'])] : [], ['التوقيع : ................'])) !!}</td>
+            <td style="vertical-align:top">{!! $cell(['التاريخ : ' . e($docDate ?? now()->format('Y/m/d')), 'البصمة :']) !!}<table><tr><td style="width:28mm;height:{{ 20 * min($gap, 1.3) }}mm;border:0.3mm dashed #94a3b8">&nbsp;</td></tr></table></td>
+        </tr></table>
+    @endif
 @break
 
 @case('cash_received')
