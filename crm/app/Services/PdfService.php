@@ -109,6 +109,7 @@ class PdfService
             $build = function (float $gap) use ($make, $html, $footer) {
                 $m = $make();
                 $m->SetHTMLFooter($footer);
+                $m->DefHTMLFooterByName('zaradFoot', $footer); // the layout's @page rules (company letterhead) use it by name
                 $m->WriteHTML($html($gap));
                 $pass = ['page' => $m->page, 'y' => $m->y, 'pdf' => $m->Output('', 'S')];
                 unset($m);

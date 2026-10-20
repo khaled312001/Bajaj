@@ -36,22 +36,17 @@
     .text { line-height: {{ 2.1 + 0.15 * ($gap - 1) }}; font-size: 13pt; font-weight: bold; text-align: justify; margin: {{ 4 * $gap }}mm 0; }
     .strong { font-weight: bold; }
     .box { border: 0.4mm solid #1d4ed8; padding: {{ 3 * $gap }}mm 4mm; background: #f8fbff; margin: {{ 3 * $gap }}mm 0; }
+    @if(! empty($zarad))@page { margin: 50mm 14mm 26mm 14mm; margin-header: 12mm; margin-footer: 7mm; header: html_zaradNext; footer: html_zaradFoot; }
+    @page :first { margin: 12mm 14mm 26mm 14mm; header: _blank; footer: html_zaradFoot; }@endif
 </style>
 </head>
 <body>
 @if(! empty($zarad))
-{{-- company documents: same identity as the pre-printed ZARAD auto letterhead; the name faces the logo, date under it --}}
-<table style="width:100%"><tr>
-    <td style="vertical-align:middle">
-        <div style="font-size:15pt;font-weight:bold;color:#2e3192">{{ $company['name'] }}</div>
-        <div style="font-size:9pt;color:#2e3192;direction:ltr;text-align:right">{{ $company['name_en'] }}</div>
-        <div style="font-size:8.5pt;color:#334155;margin-top:1mm">@if($company['register'])سجل تجاري : {{ $company['register'] }}@endif @if($company['tax']) &nbsp;|&nbsp; بطاقة ضريبية : {{ $company['tax'] }}@endif</div>
-    </td>
-    <td style="width:58mm;text-align:left;vertical-align:middle">
-        <img src="{{ public_path('img/zarad-logo.png') }}" style="width:50mm">
-    </td>
-</tr></table>
-<div style="text-align:left;font-size:11pt;font-weight:bold;color:#334155;margin-top:{{ 3 * $gap }}mm">التاريخ: {{ $docDate ?? now()->format('Y/m/d') }}</div>
+{{-- company documents: the letterhead opens page 1; a long document (many vehicles) repeats it on every
+     following page with the document number in place of the title, so each sheet stands on its own --}}
+<htmlpageheader name="zaradNext">@include('pdf._zarad_head', ['gap' => 1])
+    <div style="text-align:center;font-size:15pt;font-weight:bold;color:#0b1b3a;margin-top:2mm">رقم المستند: <span dir="ltr">{{ $docNo ?? '' }}</span></div></htmlpageheader>
+@include('pdf._zarad_head')
 @else
 <table class="hd"><tr>
     <td style="width:30mm"><table><tr><td class="logo"><img src="{{ $logo }}" style="width:24mm"></td></tr></table></td>

@@ -62,6 +62,20 @@ class BulkReceiptTest extends TestCase
         $this->assertSame(1, preg_match_all('/\/Type\s*\/Page[^s]/', $pdf));
     }
 
+    public function test_a_long_list_repeats_the_letterhead_with_the_document_number_on_the_next_page(): void
+    {
+        $items = implode("\n", array_map(fn ($i) => "بوكسر 150 | 2026 | أسود | CH{$i} | MO{$i}", range(1, 24)));
+        $d = ['customer_name' => 'محمود', 'items' => $items, 'to_name' => 'أحمد', 'to_nat' => '1', 'to_address' => 'قوص'];
+        $html = $this->html($d);
+        $this->assertStringContainsString('<htmlpageheader name="zaradNext">', $html);
+        $this->assertStringContainsString('رقم المستند: <span dir="ltr">BK-1</span>', $html);
+        $this->assertStringContainsString('header: html_zaradNext', $html);
+
+        $pdf = PdfService::render('pdf.document', ['type' => 'bulk_receipt', 'def' => DocumentService::type('bulk_receipt'), 'd' => $d, 'deal' => null,
+            'docNo' => 'BK-1', 'docDate' => '2026/10/20', 'zarad' => true], 'x', false, 'x', ['company' => true]);
+        $this->assertSame(2, preg_match_all('/\/Type\s*\/Page[^s]/', $pdf));
+    }
+
     public function test_receipts_issued_before_the_change_reprint_unchanged(): void
     {
         $html = $this->html(['customer_name' => 'قديم', 'items' => 'بوكسر | 2025 | أحمر | C1 | M1', 'purchase_date' => '2026-09-01']);
