@@ -77,6 +77,10 @@ class CustomerController extends Controller
                 return redirect()->route('customers.show', $hit->first());
             }
         }
+        // the exact code opens the customer's file straight away
+        if (Customer::looksLikeCode($term) && ! $request->query('page') && ($hit = Customer::where('code', strtoupper($term))->first())) {
+            return redirect()->route('customers.show', $hit);
+        }
         $q = $this->query($request, true);
 
         $sort = in_array($request->query('sort'), ['name', 'created_at', 'status'], true) ? $request->query('sort') : 'created_at';
@@ -251,7 +255,7 @@ class CustomerController extends Controller
         $term = trim((string) $request->query('q'));
         abort_if(mb_strlen($term) < 2, 422, 'اكتب حرفين على الأقل');
 
-        $rows = Customer::query()->search($term)->orderBy('name')->limit(8)
+        $rows = Customer::query()->search($term)->orderByRaw('customers.code = ? DESC', [strtoupper($term)])->orderBy('name')->limit(8)
             ->get(['id', 'name', 'phone', 'code'])->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'phone' => $c->phone, 'code' => $c->code]);
 
         return response()->json($rows);

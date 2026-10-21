@@ -169,21 +169,37 @@ class Customer extends Model
             || Permissions::allows($user, 'customers_all', 'edit');
     }
 
+    /** Digits only (with spaces, +, dashes or Arabic digits): a phone number or part of one. */
+    public static function looksLikePhone(string $term): bool
+    {
+        return (bool) preg_match('/^[\d\s+\-()٠-٩]+$/u', $term) && strlen((string) self::normalizePhone($term)) >= 3;
+    }
+
+    /** A whole customer code: six letters/digits with at least one letter, e.g. 8NZ789. */
+    public static function looksLikeCode(string $term): bool
+    {
+        return (bool) preg_match('/^(?=.*[A-Za-z])[A-Za-z0-9]{6}$/', $term);
+    }
+
     public function scopeSearch(Builder $q, ?string $term): Builder
     {
         $term = trim((string) $term);
         if ($term === '') {
             return $q;
         }
-        $phone = self::normalizePhone($term);
+        // phone numbers are searched only when the term is a number: a code like 8NZ789 must not match
+        // every phone that happens to contain "8789"
+        $phone = self::looksLikePhone($term) ? self::normalizePhone($term) : null;
         $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $term) . '%';
 
         return $q->where(function ($w) use ($term, $like, $phone) {
             $w->where('customers.name', 'like', $like)
-                ->orWhere('customers.code', 'like', $like)
-                ->orWhere('customers.phone', 'like', '%' . ($phone ?: $term) . '%')
-                ->orWhere('customers.alt_phone', 'like', '%' . ($phone ?: $term) . '%')
-                ->orWhere('customers.whatsapp', 'like', '%' . ($phone ?: $term) . '%');
+                ->orWhere('customers.code', 'like', $like);
+            if ($phone) {
+                $w->orWhere('customers.phone', 'like', '%' . $phone . '%')
+                    ->orWhere('customers.alt_phone', 'like', '%' . $phone . '%')
+                    ->orWhere('customers.whatsapp', 'like', '%' . $phone . '%');
+            }
             if (preg_match('/^\d{14}$/', $term)) {
                 $w->orWhere('customers.nat_id_hash', self::hashNatId($term));
             }

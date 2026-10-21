@@ -108,7 +108,7 @@ class ChatController extends Controller
         if (mb_strlen($term) < 2) {
             return response()->json(['customers' => []]);
         }
-        $customers = Customer::query()->visibleTo($request->user())->search($term)->latest('id')->limit(8)->get(['id', 'name', 'code', 'status']);
+        $customers = Customer::query()->visibleTo($request->user())->search($term)->orderByRaw('customers.code = ? DESC', [strtoupper($term)])->latest('id')->limit(8)->get(['id', 'name', 'code', 'status']);
 
         return response()->json(['customers' => $customers]);
     }
