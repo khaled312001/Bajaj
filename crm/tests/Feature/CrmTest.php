@@ -239,7 +239,10 @@ class CrmTest extends TestCase
         $sameer = Customer::where('phone', '01012345678')->first();
         $this->assertSame(2, $sameer->deals()->count());
         $this->assertSame($this->admin->id, $sameer->created_by);
-        $this->assertCount(24, $sameer->deals()->where('pay_method', 'تقسيط')->first()->installments);
+        // financed by أمان: the customer pays the entity, which owes us the remainder (no schedule here)
+        $viaAman = $sameer->deals()->where('pay_method', 'تقسيط')->first();
+        $this->assertCount(0, $viaAman->installments);
+        $this->assertEquals(240000, $viaAman->balance);
         $this->assertSame('29001011234567', $sameer->nat_id);
         $this->get("/data/import/{$import->id}/result")->assertOk();
         $this->get("/data/import/{$import->id}/errors")->assertOk();

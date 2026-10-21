@@ -18,6 +18,7 @@
         <button type="button" class="btn btn-ghost" data-close="m-quick-calc">إغلاق</button>
         <button type="button" class="btn btn-soft" id="qc-copy-fin" style="display:none"><i class="fa-regular fa-copy"></i> نسخ لجهة التقسيط</button>
         <button type="button" class="btn btn-primary" id="qc-copy" style="display:none"><i class="fa-regular fa-copy"></i> نسخ عرض التقسيط للعميل</button>
+        <button type="button" class="btn btn-green" id="qc-save" style="display:none"><i class="fa-solid fa-floppy-disk"></i> حفظ الحساب للمركبة</button>
     </div>
 </div></div>
 <script>
@@ -28,7 +29,7 @@
     const title = @json(\App\Support\Settings::get('offer_title', 'عرض تقسيط بجاج قنا'));
     const csrf = document.querySelector('meta[name=csrf-token]').content;
     const money = (v) => Math.round(+v || 0).toLocaleString('en-US');
-    let last = null, timer;
+    let last = null, timer, saveUrl = null;
 
     // price next to any vehicle select
     const hint = (sel) => {
@@ -64,6 +65,7 @@
                 }
             } catch (e) { last = null; }
             $('qc-copy').style.display = $('qc-copy-fin').style.display = last ? '' : 'none';
+            $('qc-save').style.display = last && saveUrl ? '' : 'none';
         }, 200);
     };
     const offer = (d) => [title, '', $('qc-product').value ? 'المنتج: ' + $('qc-product').value : null, 'السعر الكاش: ' + money(d.price) + ' جنيه',
@@ -77,6 +79,19 @@
     ['qc-price', 'qc-down', 'qc-months'].forEach(id => $(id).addEventListener('input', run));
     $('qc-copy').addEventListener('click', () => last && copy(offer(last), 'تم نسخ عرض التقسيط'));
     $('qc-copy-fin').addEventListener('click', () => last && last.finance_text && copy(last.finance_text, 'تم نسخ التفاصيل لجهة التقسيط'));
+    // a requested vehicle keeps its calculation (the server recomputes it from these four inputs)
+    $('qc-save').addEventListener('click', async () => {
+        if (!last || !saveUrl) return;
+        $('qc-save').disabled = true;
+        try {
+            const r = await fetch(saveUrl, { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, Accept: 'application/json' },
+                body: new URLSearchParams({ price: $('qc-price').value || 0, down: $('qc-down').value || 0, months: $('qc-months').value || 12, plan: $('qc-plan').value }) });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) { toast(d.message || 'تعذر الحفظ', 'error'); $('qc-save').disabled = false; return; }
+            toast('تم حفظ الحساب للمركبة');
+            setTimeout(() => location.reload(), 500);
+        } catch (e) { toast('تعذر الحفظ', 'error'); $('qc-save').disabled = false; }
+    });
 
     // open for a product (from a vehicle row, or from the vehicle select of the form)
     document.addEventListener('click', (e) => {
@@ -85,6 +100,14 @@
         const from = b.dataset.qcFrom ? document.querySelector(b.dataset.qcFrom) : null;
         const name = b.dataset.qcProduct || (from ? from.value : '');
         if (name && [...$('qc-product').options].some(o => o.value === name)) { $('qc-product').value = name; $('qc-price').value = prices[name]; }
+        saveUrl = b.dataset.qcSave || null;
+        $('qc-save').disabled = false;
+        // reopening a saved calculation shows it again, ready to recalculate and save
+        const saved = b.dataset.qcSaved ? JSON.parse(b.dataset.qcSaved) : null;
+        if (saved) {
+            $('qc-price').value = saved.price; $('qc-down').value = saved.down; $('qc-months').value = saved.months;
+            if ([...$('qc-plan').options].some(o => o.value === saved.plan)) { $('qc-plan').value = saved.plan; chips(); }
+        }
         run();
     });
     chips();

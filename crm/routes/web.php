@@ -65,6 +65,8 @@ Route::middleware(['auth', 'guard.app'])->group(function () {
     Route::delete('/customers/{customer}', [CustomerController::class, 'destroy'])->middleware('perm:customers,delete')->name('customers.destroy');
     Route::post('/customers/{customer}/vehicles', [CustomerController::class, 'storeVehicle'])->middleware('perm:customers,edit')->name('customers.vehicles.store');
     Route::delete('/customers/{customer}/vehicles/{vehicle}', [CustomerController::class, 'destroyVehicle'])->middleware('perm:customers,edit')->name('customers.vehicles.destroy');
+    Route::put('/customers/{customer}/vehicles/{vehicle}', [CustomerController::class, 'updateVehicle'])->middleware('perm:customers,edit')->name('customers.vehicles.update');
+    Route::post('/customers/{customer}/vehicles/{vehicle}/calc', [CustomerController::class, 'saveVehicleCalc'])->middleware('perm:customers,edit')->name('customers.vehicles.calc');
 
     // deals, installments, payments
     Route::get('/customers/{customer}/deals/create', [DealController::class, 'create'])->middleware('perm:deals,create')->name('deals.create');
@@ -73,6 +75,7 @@ Route::middleware(['auth', 'guard.app'])->group(function () {
     Route::put('/deals/{deal}', [DealController::class, 'update'])->middleware('perm:deals,edit')->name('deals.update');
     Route::get('/deals/{deal}/schedule', [DealController::class, 'schedule'])->middleware('perm:deals,view')->name('deals.schedule');
     Route::post('/deals/{deal}/payments', [DealController::class, 'addPayment'])->middleware('perm:payments,create')->name('deals.payments.store');
+    Route::post('/deals/{deal}/entity', [DealController::class, 'entityCollection'])->middleware('perm:payments,create')->name('deals.entity');
     Route::delete('/deals/{deal}', [DealController::class, 'destroy'])->middleware('perm:deals,delete')->name('deals.destroy');
     Route::delete('/payments/{payment}', [DealController::class, 'deletePayment'])->middleware('perm:payments,delete')->name('payments.destroy');
 

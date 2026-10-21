@@ -78,20 +78,38 @@
         </div>
         <div class="card-body">
             @php($vehiclePrices = \App\Models\Product::where('is_active', true)->pluck('price', 'name'))
+            @php($canVehicle = $canEdit && auth()->user()->allows('customers', 'edit'))
             @forelse($vehicles as $v)
-                <div class="row between wrap" style="gap:10px;padding:8px 0;{{ ! $loop->last ? 'border-bottom:1px solid var(--line-2)' : '' }}">
+                @php($calc = $v->calc)
+                <div style="padding:10px 0;{{ ! $loop->last ? 'border-bottom:1px solid var(--line-2)' : '' }}">
+                <div class="row between wrap" style="gap:10px">
                     <div><b style="font-size:15px">{{ $v->vehicle }}</b>
                         @if($loop->first)<span class="badge blue" style="margin-right:8px">الأحدث</span>@endif
                         @if(isset($vehiclePrices[$v->vehicle]))<span class="badge green" style="margin-right:6px">{{ number_format($vehiclePrices[$v->vehicle]) }} ج.م</span>@endif
-                        @if(isset($vehiclePrices[$v->vehicle]) && auth()->user()->allows('calculator'))<button type="button" class="btn btn-xs btn-soft no-print" style="margin-right:6px" data-open="m-quick-calc" data-qc data-qc-product="{{ $v->vehicle }}"><i class="fa-solid fa-calculator"></i> احسب القسط</button>@endif
-                        @if($v->notes)<div class="muted small mt">{{ $v->notes }}</div>@endif
+                        @if($v->finance_entity)<span class="badge purple" style="margin-right:6px"><i class="fa-solid fa-building-columns"></i> {{ $v->finance_entity }}{{ $v->entity_branch ? ' — فرع ' . $v->entity_branch : '' }}</span>@endif
+                        @if($v->stage)<span class="badge amber" style="margin-right:6px">{{ $v->stage }}</span>@endif
                     </div>
-                    <div class="row" style="gap:10px">
-                        <div class="muted small">{{ $v->creator?->name ?? '—' }} · {{ $v->created_at->format('Y/m/d') }}</div>
+                    <div class="row wrap" style="gap:6px">
+                        @if((isset($vehiclePrices[$v->vehicle]) || $calc) && auth()->user()->allows('calculator'))<button type="button" class="btn btn-xs btn-soft no-print" data-open="m-quick-calc" data-qc data-qc-product="{{ $v->vehicle }}" @if($calc) data-qc-saved="{{ json_encode(['price' => $calc['price'], 'down' => $calc['down'], 'months' => $calc['months'], 'plan' => $calc['plan']], JSON_UNESCAPED_UNICODE) }}" @endif @if($canVehicle) data-qc-save="{{ route('customers.vehicles.calc', [$customer, $v]) }}" @endif><i class="fa-solid fa-calculator"></i> احسب القسط</button>@endif
+                        @if($canVehicle)<button type="button" class="btn btn-xs btn-ghost no-print" data-open="m-vehicle-edit" data-action="{{ route('customers.vehicles.update', [$customer, $v]) }}" data-fill-vehicle-name="{{ $v->vehicle }}" data-fill-finance-entity="{{ $v->finance_entity }}" data-fill-entity-branch="{{ $v->entity_branch }}" data-fill-stage="{{ $v->stage }}" data-fill-notes="{{ $v->notes }}"><i class="fa-solid fa-pen"></i> جهة التقسيط والمرحلة</button>@endif
+                        <span class="muted small">{{ $v->creator?->name ?? '—' }} · {{ $v->created_at->format('Y/m/d') }}</span>
                         @if(auth()->user()->isAdmin() || $v->created_by === auth()->id())
                         <form method="POST" action="{{ route('customers.vehicles.destroy', [$customer, $v]) }}" data-confirm="حذف هذه المركبة؟" class="no-print">@csrf @method('DELETE')<button class="btn btn-xs btn-danger-soft"><i class="fa-solid fa-trash"></i></button></form>
                         @endif
                     </div>
+                </div>
+                @if($calc)
+                    <div class="veh-calc">
+                        <span><i class="fa-solid fa-calculator" style="color:var(--blue-600)"></i> <b>الحساب المحفوظ</b></span>
+                        <span>السعر <b class="num">@money($calc['price'])</b></span><span>المقدم <b class="num">@money($calc['down'])</b></span>
+                        <span>النظام <b>{{ $calc['months'] }} شهر{{ $calc['plan'] ? ' — ' . $calc['plan'] : '' }}</b></span>
+                        <span>القسط الشهري <b class="num" style="color:var(--blue-600)">@money($calc['monthly'])</b></span>
+                        <span>المصاريف الإدارية <b class="num">@money($calc['fees'])</b></span>
+                        <span>عند الاستلام <b class="num">@money($calc['upfront'])</b></span>
+                        <span class="muted">{{ $calc['saved_by'] ?? '' }} · {{ $calc['saved_at'] ?? '' }}</span>
+                    </div>
+                @endif
+                @if($v->notes)<div class="muted small mt">{{ $v->notes }}</div>@endif
                 </div>
             @empty
                 <div class="muted small">لا توجد مركبات مسجلة بعد.</div>
@@ -110,6 +128,7 @@
     @forelse($deals as $d)
         @php($paidPct = $d->total_payable > 0 ? min(100, $d->paid_total / $d->total_payable * 100) : 0)
         @php($installmentCopyText = $d->installmentCopyText())
+        @php($entityDeal = $d->isEntityFinanced())
         <div class="card" style="margin-bottom:18px">
             <div class="card-head">
                 <h3><i class="fa-solid fa-car"></i> {{ $d->vehicle ?: 'صفقة' }} {{ $d->model }} <span class="badge {{ $d->status_class }}">{{ $d->status }}</span> <span class="badge gray">{{ $d->pay_method }}</span></h3>
@@ -126,11 +145,16 @@
                 <div class="grid g4 mb">
                     <div class="kv" style="display:block"><span>السعر</span><br><b class="num">@money($d->total_price)</b></div>
                     <div class="kv" style="display:block"><span>المقدم</span><br><b class="num">@money($d->down_payment)</b></div>
+                    @if($entityDeal)
+                        <div class="kv" style="display:block"><span>تحويل {{ $d->finance_entity }}</span><br><span class="badge {{ $d->entity_state_class }}" style="margin-top:4px">{{ $d->entity_state_label }}</span></div>
+                        <div class="kv" style="display:block"><span>المتبقي (المديونية على {{ $d->finance_entity }})</span><br><b class="num" style="color:{{ $d->balance > 0 ? 'var(--red)' : 'var(--green)' }}">@money($d->balance)</b></div>
+                    @else
                     <div class="kv" style="display:block"><span>{{ $d->isInstallment() ? 'القسط الشهري' : 'المتبقي' }}</span><br><b class="num">@money($d->isInstallment() ? $d->monthly_installment : $d->balance)</b></div>
                     <div class="kv" style="display:block"><span>المتبقي (المديونية)</span><br><b class="num" style="color:{{ $d->balance > 0 ? 'var(--red)' : 'var(--green)' }}">@money($d->balance)</b></div>
+                    @endif
                 </div>
                 <div class="small muted mb-s">
-                    @if($d->finance_entity)الجهة: <b>{{ $d->finance_entity }}</b> · @endif
+                    @if($d->finance_entity)الجهة: <b>{{ $d->finance_entity }}{{ $d->entity_branch ? ' — فرع ' . $d->entity_branch : '' }}</b> · @endif
                     @if($d->stage)المرحلة: <b>{{ $d->stage }}</b> · @endif
                     @if($d->color)اللون: <b>{{ $d->color }}</b> · @endif
                     @if($d->sale_date)تاريخ البيع: <b>{{ $d->sale_date->format('Y/m/d') }}</b> · @endif
@@ -138,7 +162,7 @@
                     @if($d->chassis)الشاسيه: <b class="num">{{ $d->chassis }}</b> · @endif
                     @if($d->motor)الموتور: <b class="num">{{ $d->motor }}</b> · @endif
                     @if($d->delivery_date)التسليم: <b>{{ $d->delivery_date->format('Y/m/d') }}</b> · @endif
-                    @if($d->interest_type === 'table' && $d->installments->count())نظام الشركة · @elseif($d->interest_rate > 0)فائدة {{ rtrim(rtrim(number_format($d->interest_rate, 2), '0'), '.') }}% ({{ $d->interest_type === 'flat' ? 'ثابتة' : 'متناقصة' }}) · @endif
+                    @if($entityDeal)@elseif($d->interest_type === 'table' && $d->installments->count())نظام الشركة · @elseif($d->interest_rate > 0)فائدة {{ rtrim(rtrim(number_format($d->interest_rate, 2), '0'), '.') }}% ({{ $d->interest_type === 'flat' ? 'ثابتة' : 'متناقصة' }}) · @endif
                     @if($d->admin_fees > 0)مصاريف إدارية: <b class="num">@money($d->admin_fees)</b> · @endif
                     @if($d->mobaya_no)مبايعة: <b class="num">{{ $d->mobaya_no }}</b> · @endif
                     @if($d->invoice_no)فاتورة: <b class="num">{{ $d->invoice_no }}</b> · @endif
@@ -146,6 +170,20 @@
                     أدخلها: {{ $d->creator?->name ?? '—' }}
                 </div>
 
+                @if($entityDeal && ($d->financed_amount > 0 || $d->entity_state !== 'pending'))
+                    <div class="entity-box">
+                        @if($d->entity_state === 'pending')
+                            <span><i class="fa-solid fa-building-columns"></i> العميل بيسدد الأقساط لـ <b>{{ $d->finance_entity }}</b> — والجهة تحوّل لنا <b class="num">@money($d->balance)</b> (بعد الإيداع بيتجمد {{ \App\Models\Deal::ENTITY_DAYS }} يوم وبعدها يتحصل)</span>
+                        @else
+                            <span><i class="fa-solid fa-building-columns"></i> المبلغ <b class="num">@money($d->entity_amount)</b></span>
+                            @if($d->entity_ref)<span>رقم المرجع <b class="num">{{ $d->entity_ref }}</b></span>@endif
+                            @if($d->entity_deposited_at)<span>الإيداع <b>{{ $d->entity_deposited_at->format('Y/m/d') }}</b></span>@endif
+                            @if($d->entity_collected_at)<span>التحصيل <b>{{ $d->entity_collected_at->format('Y/m/d') }}</b></span>@else<span>موعد التحصيل <b>{{ $d->entity_due_date->format('Y/m/d') }}</b></span>@endif
+                            @if($d->entity_channel || $d->entity_account)<span>إلى <b>{{ trim($d->entity_channel . ' ' . $d->entity_account) }}</b></span>@endif
+                            @if($d->entity_note)<span class="muted">{{ $d->entity_note }}</span>@endif
+                        @endif
+                    </div>
+                @endif
                 @if($d->installments->count())
                     <div class="row between small mb-s"><b>سداد الأقساط</b><span class="muted">{{ $d->installments->where('state', 'paid')->count() }} / {{ $d->installments->count() }} قسط — {{ round($paidPct) }}%</span></div>
                     <div class="progress green mb"><span style="width:{{ $paidPct }}%"></span></div>
@@ -161,7 +199,12 @@
                 <div class="divider"></div>
                 <div class="row between mb-s">
                     <b class="small"><i class="fa-solid fa-money-bill-wave" style="color:var(--green)"></i> الدفعات ({{ $d->payments->count() }}) — المحصّل <span class="num">@money($d->paid_total)</span></b>
-                    @if($canEdit && $d->balance > 0 && auth()->user()->allows('payments', 'create'))<button class="btn btn-sm btn-green no-print" data-open="m-pay" data-action="{{ route('deals.payments.store', $d) }}" data-fill-deal-label="{{ $d->vehicle }}" data-fill-amount="{{ $d->isInstallment() && $d->monthly_installment ? min($d->monthly_installment, $d->balance) : $d->balance }}"><i class="fa-solid fa-plus"></i> تسجيل دفعة</button>@endif
+                    @if($entityDeal && $canEdit && auth()->user()->allows('payments', 'create'))
+                        <button class="btn btn-sm btn-green no-print" data-open="m-entity" data-action="{{ route('deals.entity', $d) }}" data-fill-entity-label="{{ $d->finance_entity }} — {{ $d->vehicle }}"
+                            data-fill-entity-amount="{{ $d->entity_amount ?: $d->balance }}" data-fill-entity-ref="{{ $d->entity_ref }}" data-fill-entity-deposited-at="{{ $d->entity_deposited_at?->format('Y-m-d') }}"
+                            data-fill-entity-collected-at="{{ $d->entity_collected_at?->format('Y-m-d') }}" data-fill-entity-channel="{{ $d->entity_channel ?: 'تحويل بنكي' }}" data-fill-entity-account="{{ $d->entity_account }}" data-fill-entity-note="{{ $d->entity_note }}">
+                            <i class="fa-solid fa-building-columns"></i> {{ $d->entity_state === 'pending' ? 'تسجيل تحويل ' . $d->finance_entity : 'تعديل تحويل ' . $d->finance_entity }}</button>
+                    @elseif($canEdit && $d->balance > 0 && auth()->user()->allows('payments', 'create'))<button class="btn btn-sm btn-green no-print" data-open="m-pay" data-action="{{ route('deals.payments.store', $d) }}" data-fill-deal-label="{{ $d->vehicle }}" data-fill-amount="{{ $d->isInstallment() && $d->monthly_installment ? min($d->monthly_installment, $d->balance) : $d->balance }}"><i class="fa-solid fa-plus"></i> تسجيل دفعة</button>@endif
                 </div>
                 @foreach($d->payments as $p)
                     <div class="row small" style="padding:7px 0;border-bottom:1px dashed var(--line)">
@@ -226,11 +269,43 @@
         <div class="modal-body">
             <div class="field"><label>المركبة <span class="req">*</span></label><select class="input" name="vehicle" id="f-vehicle-add" required data-price-hint>@include('partials.vehicle_options', ['selected' => ''])</select>
                 <div class="row between wrap" style="gap:6px;margin-top:6px"><b class="price-hint small" style="color:var(--green)"></b>@if(auth()->user()->allows('calculator'))<button type="button" class="btn btn-xs btn-soft" data-open="m-quick-calc" data-qc data-qc-from="#f-vehicle-add"><i class="fa-solid fa-calculator"></i> احسب القسط</button>@endif</div></div>
+            @include('customers._vehicle_entity_fields')
             <div class="field mt"><label>ملاحظة</label><input class="input" name="notes" maxlength="250"></div>
         </div>
         <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close="m-vehicle-add">إلغاء</button><button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> إضافة</button></div>
     </form>
 </div></div>
+
+{{-- where a requested vehicle was sent --}}
+<div class="modal" id="m-vehicle-edit"><div class="modal-box" style="max-width:460px">
+    <div class="modal-head"><h3><i class="fa-solid fa-building-columns" style="color:var(--purple)"></i> <span data-label="vehicle_name"></span></h3><button class="modal-x" data-close="m-vehicle-edit"><i class="fa-solid fa-xmark"></i></button></div>
+    <form method="POST" action="">@csrf @method('PUT')
+        <div class="modal-body">
+            @include('customers._vehicle_entity_fields')
+            <div class="field mt"><label>ملاحظة</label><input class="input" name="notes" maxlength="250"></div>
+        </div>
+        <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close="m-vehicle-edit">إلغاء</button><button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> حفظ</button></div>
+    </form>
+</div></div>
+<datalist id="entity-branches">@foreach(\App\Models\Deal::entityBranches() as $b)<option value="{{ $b }}">@endforeach</datalist>
+
+{{-- the finance entity's transfer for a deal --}}
+<div class="modal" id="m-entity"><div class="modal-box" style="max-width:560px">
+    <div class="modal-head"><h3><i class="fa-solid fa-building-columns" style="color:var(--green)"></i> تحويل جهة التقسيط — <span data-label="entity_label"></span></h3><button class="modal-x" data-close="m-entity"><i class="fa-solid fa-xmark"></i></button></div>
+    <form method="POST" action="">@csrf
+        <div class="modal-body"><div class="form-grid cols-2">
+            <div class="field"><label>المبلغ المحوّل (ج.م)</label><input class="input" type="number" step="0.01" min="0" name="entity_amount"></div>
+            <div class="field"><label>رقم المرجع</label><input class="input" name="entity_ref" maxlength="80" dir="ltr" style="text-align:right"></div>
+            <div class="field"><label>تاريخ الإيداع</label><input class="input" type="date" name="entity_deposited_at" max="{{ today()->format('Y-m-d') }}"><div class="hint">بيتجمد {{ \App\Models\Deal::ENTITY_DAYS }} يوم وبعدها يتحصل.</div></div>
+            <div class="field"><label>تاريخ التحصيل</label><input class="input" type="date" name="entity_collected_at" max="{{ today()->format('Y-m-d') }}"><div class="hint">سيبه فاضي لو الفلوس لسه مجمدة.</div></div>
+            <div class="field"><label>اتحصلت على</label><select class="input" name="entity_channel">@foreach(\App\Models\Deal::ENTITY_CHANNELS as $c)<option>{{ $c }}</option>@endforeach</select></div>
+            <div class="field"><label>البنك / الحساب</label><input class="input" name="entity_account" maxlength="120" list="entity-accounts" placeholder="مثلاً بنك مصر — حساب الشركة"></div>
+            <div class="field span-2" style="grid-column:1/-1"><label>ملاحظة</label><input class="input" name="entity_note" maxlength="250"></div>
+        </div></div>
+        <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close="m-entity">إلغاء</button><button class="btn btn-green" type="submit"><i class="fa-solid fa-check"></i> حفظ</button></div>
+    </form>
+</div></div>
+<datalist id="entity-accounts">@foreach(\App\Models\Deal::whereNotNull('entity_account')->distinct()->pluck('entity_account') as $a)<option value="{{ $a }}">@endforeach</datalist>
 
 {{-- payment modal --}}
 <div class="modal" id="m-pay"><div class="modal-box" style="max-width:480px">

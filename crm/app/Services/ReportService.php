@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Customer;
+use App\Models\CustomerVehicle;
 use App\Models\Deal;
 use App\Models\Followup;
 use App\Models\Installment;
@@ -10,6 +11,7 @@ use App\Models\Payment;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Every report returns the same shape so the UI (table + chart) and the Excel export share one source:
@@ -33,15 +35,22 @@ class ReportService
         'inventory' => ['title' => 'المخزن والمركبات', 'icon' => 'fa-warehouse', 'desc' => 'المتاح والمباع والتكلفة لكل نوع مركبة'],
         'vehicles' => ['title' => 'المركبات الأكثر طلباً', 'icon' => 'fa-motorcycle', 'desc' => 'الطلب والمبيعات لكل مركبة'],
         'finance' => ['title' => 'جهات التقسيط', 'icon' => 'fa-building-columns', 'desc' => 'عدد الصفقات وقيمتها لكل جهة'],
+        'entity_dues' => ['title' => 'مستحقات جهات التقسيط', 'icon' => 'fa-building-columns', 'desc' => 'المتبقي على كل جهة: لم يُودع، مجمد، متأخر، وما تم تحصيله', 'filters' => ['entity', 'branch', 'state']],
+        'entity_sent' => ['title' => 'العملاء المرسلين لجهات التقسيط', 'icon' => 'fa-share-from-square', 'desc' => 'مين اتبعت لكل جهة وفرع، نفذ ولا لأ، وآخر متابعة', 'filters' => ['entity', 'branch', 'result']],
         'followups' => ['title' => 'أداء المتابعات', 'icon' => 'fa-calendar-check', 'desc' => 'المنجزة والمتأخرة حسب السبب'],
     ];
 
-    public function build(string $key, Carbon $from, Carbon $to, ?int $employee = null): array
+    public const ENTITY_STATES = ['pending' => 'لم يتم الإيداع', 'deposited' => 'مجمد (تم الإيداع)', 'late' => 'متأخر', 'collected' => 'تم التحصيل'];
+
+    public const SENT_RESULTS = ['done' => 'نفذ مع الجهة', 'not_done' => 'لم ينفذ', 'open' => 'قيد المتابعة'];
+
+    /** $opts: entity / branch / state / result filters of the finance entity reports. */
+    public function build(string $key, Carbon $from, Carbon $to, ?int $employee = null, array $opts = []): array
     {
         abort_unless(isset(self::REPORTS[$key]), 404);
-        $fn = 'report' . ucfirst($key);
+        $fn = 'report' . Str::studly($key);
 
-        return ['key' => $key, 'from' => $from, 'to' => $to] + $this->$fn($from->copy()->startOfDay(), $to->copy()->endOfDay(), $employee);
+        return ['key' => $key, 'from' => $from, 'to' => $to] + $this->$fn($from->copy()->startOfDay(), $to->copy()->endOfDay(), $employee, array_filter($opts));
     }
 
     /* ------------------------------------------------------------ individual reports */
@@ -302,6 +311,128 @@ class ReportService
             'title' => 'جهات التقسيط', 'cards' => ['صفقات التقسيط' => (int) $rows->sum('n'), 'إجمالي الممول' => (float) $rows->sum('fin')], 'money_cards' => ['إجمالي الممول'],
             'columns' => ['الجهة', 'عدد الصفقات', 'المبلغ الممول', 'المحصّل', 'المتبقي'], 'rows' => $out, 'money' => [3, 4, 5],
             'chart' => ['type' => 'doughnut', 'labels' => array_column($out, 0), 'data' => array_column($out, 1), 'label' => 'الصفقات'],
+        ];
+    }
+
+    /** What each finance entity still owes us (whenever it was sold) and what it paid during the period. */
+    private function reportEntityDues(Carbon $f, Carbon $t, ?int $emp, array $o = []): array
+    {
+        $deals = Deal::query()->entityFinanced()->with(['customer:id,code,name,phone', 'creator:id,name'])
+            ->whereIn('status', ['جاري التقسيط', 'منفذة'])->where('financed_amount', '>', 0)
+            ->when($emp, fn ($q) => $q->where('created_by', $emp))
+            ->when($o['entity'] ?? null, fn ($q, $v) => $q->where('finance_entity', $v))
+            ->when($o['branch'] ?? null, fn ($q, $v) => $q->where('entity_branch', $v))
+            ->where(fn ($w) => $w->whereNull('entity_collected_at')->orWhereBetween('entity_collected_at', [$f->toDateString(), $t->toDateString()]))
+            ->orderBy('finance_entity')->orderBy('sale_date')->orderBy('id')->limit(5000)->get();
+        $state = fn (Deal $d) => $d->entity_state === 'collected' ? 'collected' : ($d->entity_late_days > 0 ? 'late' : $d->entity_state);
+        if ($want = $o['state'] ?? null) {
+            $deals = $deals->filter(fn ($d) => $state($d) === $want)->values();
+        }
+
+        $rows = $deals->map(fn (Deal $d) => [
+            $d->finance_entity, $d->entity_branch ?? '—', $d->customer?->code, $d->customer?->name, trim($d->vehicle . ' ' . $d->model) ?: '—',
+            ($d->sale_date ?? $d->created_at)->format('Y/m/d'), $d->entity_amount ?: $d->total_payable,
+            $d->entity_deposited_at?->format('Y/m/d') ?? '—', $d->entity_ref ?? '—', $d->entity_collected_at?->format('Y/m/d') ?? '—',
+            trim($d->entity_channel . ' ' . $d->entity_account) ?: '—', $d->entity_state_label, $d->balance, $d->creator?->name ?? '—',
+        ])->all();
+        $byEntity = $deals->groupBy('finance_entity')->map(fn ($g) => round($g->sum('balance'), 2))->sortDesc();
+
+        return [
+            'title' => 'مستحقات جهات التقسيط',
+            'cards' => [
+                'المستحق على الجهات' => round($deals->sum('balance'), 2),
+                'منه متأخر' => round($deals->filter(fn ($d) => $state($d) === 'late')->sum('balance'), 2),
+                'مجمد (تم الإيداع)' => round($deals->filter(fn ($d) => $state($d) === 'deposited')->sum(fn ($d) => $d->entity_amount ?: $d->balance), 2),
+                'تم تحصيله في الفترة' => round($deals->filter(fn ($d) => $d->entity_state === 'collected')->sum('entity_amount'), 2),
+            ],
+            'money_cards' => ['المستحق على الجهات', 'منه متأخر', 'مجمد (تم الإيداع)', 'تم تحصيله في الفترة'],
+            'columns' => ['الجهة', 'الفرع', 'الكود', 'العميل', 'المركبة', 'تاريخ البيع', 'المستحق', 'تاريخ الإيداع', 'رقم المرجع', 'تاريخ التحصيل', 'اتحصلت على', 'الحالة', 'المتبقي', 'أدخلها'],
+            'rows' => $rows, 'money' => [7, 13],
+            'chart' => ['type' => 'bar', 'labels' => $byEntity->keys()->all(), 'data' => $byEntity->values()->all(), 'label' => 'المتبقي على كل جهة'],
+        ];
+    }
+
+    /**
+     * Customers sent to a finance entity (a requested vehicle sent there, or a deal through it), by entity and branch:
+     * did they execute with it, and what the last follow-up says.
+     */
+    private function reportEntitySent(Carbon $f, Carbon $t, ?int $emp, array $o = []): array
+    {
+        $entity = $o['entity'] ?? null;
+        $branch = $o['branch'] ?? null;
+        $mine = fn ($q) => $q->where('assigned_to', $emp);
+
+        $vehicles = CustomerVehicle::query()->whereNotNull('finance_entity')->where('finance_entity', '!=', '')
+            ->whereBetween(DB::raw('COALESCE(entity_sent_at, created_at)'), [$f, $t])
+            ->when($entity, fn ($q) => $q->where('finance_entity', $entity))->when($branch, fn ($q) => $q->where('entity_branch', $branch))
+            ->when($emp, fn ($q) => $q->whereHas('customer', $mine))->orderByDesc('id')->limit(5000)->get();
+        $deals = Deal::query()->entityFinanced()->whereBetween('created_at', [$f, $t])
+            ->when($entity, fn ($q) => $q->where('finance_entity', $entity))->when($branch, fn ($q) => $q->where('entity_branch', $branch))
+            ->when($emp, fn ($q) => $q->whereHas('customer', $mine))->orderByDesc('id')->limit(5000)->get();
+
+        // one row per customer and entity; the deal (if any) has the final word
+        $groups = [];
+        foreach ($vehicles as $v) {
+            $groups[$v->customer_id . '|' . $v->finance_entity]['vehicle'] ??= $v;
+        }
+        foreach ($deals as $d) {
+            $groups[$d->customer_id . '|' . $d->finance_entity]['deal'] ??= $d;
+        }
+        $ids = array_unique(array_map(fn ($k) => (int) $k, array_keys($groups)));
+        $customers = Customer::with('assignee:id,name')->whereIn('id', $ids)->get(['id', 'code', 'name', 'phone', 'status', 'assigned_to'])->keyBy('id');
+        // to see a deal for this customer and this entity even if it was entered before the period
+        $allDeals = Deal::whereIn('customer_id', $ids)->get(['id', 'customer_id', 'pay_method', 'finance_entity', 'entity_branch', 'status', 'stage', 'vehicle'])->groupBy('customer_id');
+        $lastFu = \App\Models\Followup::whereIn('customer_id', $ids)->orderByDesc('due_date')->orderByDesc('id')
+            ->get(['customer_id', 'due_date', 'reason', 'outcome', 'status'])->unique('customer_id')->keyBy('customer_id');
+
+        $rows = [];
+        $tally = ['done' => 0, 'not_done' => 0, 'open' => 0];
+        $byGroup = [];
+        foreach ($groups as $key => $g) {
+            [$cid, $ent] = explode('|', $key, 2);
+            $c = $customers[(int) $cid] ?? null;
+            if (! $c) {
+                continue;   // deleted customer
+            }
+            $theirs = $allDeals[$c->id] ?? collect();
+            $deal = $g['deal'] ?? $theirs->first(fn ($d) => $d->finance_entity === $ent && $d->pay_method === 'تقسيط');
+            $veh = $g['vehicle'] ?? null;
+            $other = $theirs->first(fn ($d) => $d->status !== 'مفقودة' && ! ($d->finance_entity === $ent && $d->pay_method === 'تقسيط'));
+            $stage = $deal?->stage ?: $veh?->stage;
+
+            if ($deal && $deal->status !== 'مفقودة') {
+                [$res, $label] = ['done', 'نفذ — ' . $deal->status];
+            } elseif ($other) {
+                [$res, $label] = ['not_done', 'لم ينفذ — اشترى ' . ($other->pay_method === 'كاش' ? 'كاش' : 'عن طريق ' . ($other->finance_entity ?: 'الشركة'))];
+            } elseif ($c->status === 'مفقودة' || $deal || preg_match('/مرفوض|ملغي|سيئ/u', (string) $stage)) {
+                [$res, $label] = ['not_done', 'لم ينفذ'];
+            } else {
+                [$res, $label] = ['open', 'قيد المتابعة'];
+            }
+            if (($o['result'] ?? null) && $o['result'] !== $res) {
+                continue;
+            }
+            $tally[$res]++;
+            $br = $deal?->entity_branch ?: $veh?->entity_branch;
+            $byGroup[$ent . ($br ? ' — ' . $br : '')] = ($byGroup[$ent . ($br ? ' — ' . $br : '')] ?? 0) + 1;
+            $fu = $lastFu[$c->id] ?? null;
+            $sent = $veh ? ($veh->entity_sent_at ?? $veh->created_at) : $deal->created_at;
+
+            $rows[] = [
+                $sent->format('Y/m/d'), $c->code, $c->name, $c->phone, ($deal?->vehicle ?: $veh?->vehicle) ?: '—', $ent, $br ?: '—', $stage ?: '—', $label,
+                $fu ? $fu->due_date->format('Y/m/d') . ' — ' . ($fu->outcome ?: $fu->reason) . ($fu->status === 'pending' ? ' (لم تتم)' : '') : '—',
+                $c->assignee?->name ?? '—',
+            ];
+        }
+        usort($rows, fn ($a, $b) => strcmp($b[0], $a[0]));
+        arsort($byGroup);
+
+        return [
+            'title' => 'العملاء المرسلين لجهات التقسيط',
+            'cards' => ['إجمالي المرسلين' => count($rows), 'نفذوا مع الجهة' => $tally['done'], 'لم ينفذوا' => $tally['not_done'], 'قيد المتابعة' => $tally['open']],
+            'columns' => ['تاريخ الإرسال', 'الكود', 'العميل', 'الهاتف', 'المركبة', 'الجهة', 'الفرع', 'المرحلة', 'النتيجة', 'آخر متابعة', 'المسؤول'],
+            'rows' => $rows, 'money' => [],
+            'chart' => ['type' => 'bar', 'labels' => array_keys($byGroup), 'data' => array_values($byGroup), 'label' => 'العملاء حسب الجهة والفرع'],
         ];
     }
 

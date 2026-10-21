@@ -475,3 +475,12 @@ dialog.dlg { max-height: 92vh; overflow-y: auto; }
 .lf-line .input {flex:1;min-width:140px}
 .lf-line .lf-width, .lf-line .lf-type {flex:0 0 auto;min-width:0;width:auto}
 .lf-lock {color:var(--muted);padding:6px 8px}
+
+/* a .num table cell must stay a table cell (inline-block shifted the columns away from their headers) */
+td.num, th.num { display: table-cell; }
+
+/* requested vehicle: saved installment calculation */
+.veh-calc {display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:8px;padding:8px 12px;font-size:12.5px;background:var(--blue-50);border:1px solid var(--blue-100);border-radius:10px}
+.veh-calc b {color:var(--navy-900)}
+/* deal financed by an outside entity: its transfer to us */
+.entity-box {display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;margin-bottom:12px;padding:10px 14px;font-size:13px;background:#f5f3ff;border:1px solid #e9e5ff;border-radius:10px}

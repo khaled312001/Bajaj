@@ -33,6 +33,8 @@
 
     <div class="span-3" id="inst-block" style="display:contents">
         <div class="field"><label>جهة التقسيط</label><select class="input" name="finance_entity" id="d-entity"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('finance_entity') as $x)<option @selected($v('finance_entity') === $x)>{{ $x }}</option>@endforeach</select></div>
+        <div class="field"><label>فرع الجهة</label><input class="input" name="entity_branch" value="{{ $v('entity_branch') }}" maxlength="120" list="deal-entity-branches" placeholder="مثلاً قفط"><datalist id="deal-entity-branches">@foreach(\App\Models\Deal::entityBranches() as $b)<option value="{{ $b }}">@endforeach</datalist></div>
+        <div class="alert alert-info" id="entity-hint" style="grid-column:1/-1;display:none;margin:0"><i class="fa-solid fa-building-columns"></i><div>العميل بيسدد الأقساط لجهة التقسيط — الصفقة مش هيتعمل لها جدول أقساط، والمتبقي (السعر − المقدم) هو اللي الجهة هتحوّله للشركة ويتسجل تحصيله من ملف العميل.</div></div>
         <div class="field"><label>مرحلة التقسيط</label><select class="input" name="stage"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('installment_stage') as $x)<option @selected($v('stage') === $x)>{{ $x }}</option>@endforeach</select></div>
         <div class="field"><label>تاريخ أول قسط</label><input class="input" type="date" name="first_due_date" id="d-first" value="{{ $dateVal('first_due_date') }}"><div class="hint">اتركه فارغاً ليبدأ بعد شهر من اليوم.</div></div>
         <div class="field"><label>عدد الأشهر</label><input class="input" type="number" min="0" max="120" name="months" id="d-months" value="{{ $v('months', 12) }}"></div>
@@ -65,7 +67,10 @@
   const pay = $('pay-method'), block = $('inst-block'), monthly = $('d-monthly');
   let timer;
   const csrf = document.querySelector('meta[name=csrf-token]').content;
-  const toggle = () => { block.style.display = pay.value === 'تقسيط' ? 'contents' : 'none'; if (pay.value === 'تقسيط') run(); };
+  const direct = @json(\App\Models\Deal::DIRECT_ENTITIES);
+  const entityHint = () => { const e = $('d-entity').value.trim(); $('entity-hint').style.display = pay.value === 'تقسيط' && e && !direct.includes(e) ? '' : 'none'; };
+  const toggle = () => { block.style.display = pay.value === 'تقسيط' ? 'contents' : 'none'; entityHint(); if (pay.value === 'تقسيط') run(); };
+  $('d-entity').addEventListener('change', entityHint);
   async function run() {
     clearTimeout(timer);
     timer = setTimeout(async () => {

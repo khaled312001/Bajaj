@@ -91,6 +91,30 @@ class DealController extends Controller
         return back()->with('success', 'تم تسجيل الدفعة.');
     }
 
+    /** The finance entity's transfer for this deal: deposited (frozen), then collected into our account. */
+    public function entityCollection(Request $request, Deal $deal)
+    {
+        $this->ensureCanEdit($deal->customer);
+        abort_unless($deal->isEntityFinanced(), 404);
+        $data = $request->validate([
+            'entity_amount' => ['nullable', 'numeric', 'min:0', 'max:999999999'],
+            'entity_ref' => ['nullable', 'string', 'max:80'],
+            'entity_deposited_at' => ['nullable', 'date', 'before_or_equal:today'],
+            'entity_collected_at' => ['nullable', 'date', 'before_or_equal:today'],
+            'entity_channel' => ['nullable', 'string', 'max:40'],
+            'entity_account' => ['nullable', 'string', 'max:120'],
+            'entity_note' => ['nullable', 'string', 'max:250'],
+        ], ['entity_deposited_at.before_or_equal' => 'تاريخ الإيداع لا يكون في المستقبل.', 'entity_collected_at.before_or_equal' => 'تاريخ التحصيل لا يكون في المستقبل.']);
+
+        $this->service->saveEntityCollection($deal, $data, $request->user());
+        $what = $deal->entity_collected_at ? 'تحصيل ' . number_format($deal->entity_amount, 2) . ' ج.م من ' . $deal->finance_entity
+            : ($deal->entity_deposited_at ? 'إيداع ' . $deal->finance_entity . ' (مجمد حتى ' . $deal->entity_due_date->format('Y/m/d') . ')' : 'بيانات تحويل ' . $deal->finance_entity);
+        Activity::log('payment.create', $deal, $what . ' — العميل ' . $deal->customer->name);
+        Activity::customer($deal->customer, 'payment', 'تم تسجيل ' . $what . ($deal->entity_ref ? ' — مرجع ' . $deal->entity_ref : ''));
+
+        return back()->with('success', $deal->entity_collected_at ? 'تم تسجيل التحصيل من ' . $deal->finance_entity . '.' : 'تم حفظ بيانات التحويل.');
+    }
+
     public function deletePayment(Payment $payment)
     {
         $deal = $payment->deal;

@@ -10,11 +10,11 @@ class CustomerVehicle extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['customer_id', 'vehicle', 'notes', 'created_by'];
+    protected $fillable = ['customer_id', 'vehicle', 'finance_entity', 'entity_branch', 'stage', 'calc', 'entity_sent_at', 'notes', 'created_by'];
 
     protected function casts(): array
     {
-        return ['created_at' => 'datetime'];
+        return ['created_at' => 'datetime', 'entity_sent_at' => 'datetime', 'calc' => 'array'];
     }
 
     public function customer(): BelongsTo

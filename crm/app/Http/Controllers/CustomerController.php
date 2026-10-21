@@ -35,8 +35,11 @@ class CustomerController extends Controller
         if ($v = $request->query('vehicle')) {
             $q->where(fn ($w) => $w->where('customers.interest', $v)->orWhereHas('deals', fn ($d) => $d->where('vehicle', $v)));
         }
-        if ($v = $request->query('finance_entity')) {
-            $q->whereHas('deals', fn ($d) => $d->where('finance_entity', $v));
+        // a customer "with" an entity: a deal through it, or a requested vehicle sent to it (executed or not)
+        foreach (['finance_entity', 'entity_branch'] as $f) {
+            if ($v = $request->query($f)) {
+                $q->where(fn ($w) => $w->whereHas('deals', fn ($d) => $d->where($f, $v))->orWhereHas('vehicles', fn ($d) => $d->where($f, $v)));
+            }
         }
         if ($v = $request->query('pay_method')) {
             $q->whereHas('deals', fn ($d) => $d->where('pay_method', $v));
@@ -231,12 +234,72 @@ class CustomerController extends Controller
         $data = $request->validate([
             'vehicle' => ['required', 'string', 'max:150'],
             'notes' => ['nullable', 'string', 'max:250'],
-        ]);
-        $customer->vehicles()->create($data + ['created_by' => $request->user()->id]);
+        ] + self::vehicleEntityRules());
+        $customer->vehicles()->create($data + ['created_by' => $request->user()->id, 'entity_sent_at' => ! empty($data['finance_entity']) ? now() : null]);
         $customer->update(['interest' => $data['vehicle']]);
         Activity::customer($customer, 'vehicle', 'إضافة مركبة مطلوبة: ' . $data['vehicle']);
 
         return back()->with('success', 'تمت إضافة المركبة.');
+    }
+
+    /** Where a requested vehicle was sent: finance entity, its branch, the stage there, and notes. */
+    public function updateVehicle(Request $request, Customer $customer, \App\Models\CustomerVehicle $vehicle)
+    {
+        $this->ensureCanEdit($customer);
+        abort_unless($vehicle->customer_id === $customer->id, 404);
+        $data = $request->validate(['notes' => ['nullable', 'string', 'max:250']] + self::vehicleEntityRules());
+        $data = array_map(fn ($v) => $v === '' ? null : $v, $data + ['finance_entity' => null, 'entity_branch' => null, 'stage' => null, 'notes' => null]);
+
+        $before = $vehicle->only(['finance_entity', 'entity_branch', 'stage']);
+        if ($data['finance_entity'] && $data['finance_entity'] !== $vehicle->finance_entity) {
+            $data['entity_sent_at'] = now();
+        }
+        $vehicle->update($data);
+        if ($before !== $vehicle->only(['finance_entity', 'entity_branch', 'stage'])) {
+            Activity::customer($customer, 'vehicle', $vehicle->vehicle . ': ' . implode(' · ', array_filter([
+                $vehicle->finance_entity ? 'جهة التقسيط ' . $vehicle->finance_entity . ($vehicle->entity_branch ? ' — فرع ' . $vehicle->entity_branch : '') : 'بدون جهة تقسيط',
+                $vehicle->stage ? 'المرحلة ' . $vehicle->stage : null,
+            ])));
+        }
+
+        return back()->with('success', 'تم حفظ بيانات المركبة.');
+    }
+
+    /** Save the installment calculation under a requested vehicle (recomputed here, never trusted from the browser). */
+    public function saveVehicleCalc(Request $request, Customer $customer, \App\Models\CustomerVehicle $vehicle)
+    {
+        $this->ensureCanEdit($customer);
+        abort_unless($vehicle->customer_id === $customer->id, 404);
+        $in = $request->validate([
+            'price' => ['required', 'numeric', 'min:1', 'max:999999999'],
+            'down' => ['nullable', 'numeric', 'min:0', 'max:999999999'],
+            'months' => ['required', 'integer', 'min:1', 'max:84'],
+            'plan' => ['nullable', 'string', 'max:80'],
+        ]);
+        $r = \App\Support\InstallmentCalculator::calculate(['price' => $in['price'], 'down' => $in['down'] ?? 0, 'months' => $in['months'], 'type' => 'table', 'plan' => $in['plan'] ?? null]);
+        abort_unless($r['monthly'] > 0, 422, 'لا يوجد مبلغ للتقسيط — راجع السعر والمقدم.');
+
+        $calc = ['price' => $r['price'], 'down' => $r['down'], 'months' => $r['months'], 'plan' => $r['plan'] ?? ($in['plan'] ?? null), 'monthly' => $r['monthly'],
+            'fees' => $r['fees'], 'upfront' => $r['upfront'], 'financed' => $r['financed'], 'grand_total' => $r['grand_total'],
+            'saved_at' => now()->format('Y-m-d H:i'), 'saved_by' => $request->user()->name];
+        $fill = ['calc' => $calc];
+        // the plan names the entity the offer was made for, unless the employee already chose one
+        if (! $vehicle->finance_entity && \App\Models\Deal::isOutsideEntity($calc['plan']) && in_array($calc['plan'], Lookup::list('finance_entity'), true)) {
+            $fill += ['finance_entity' => $calc['plan'], 'entity_sent_at' => now()];
+        }
+        $vehicle->update($fill);
+        Activity::customer($customer, 'vehicle', 'حفظ حساب القسط لـ ' . $vehicle->vehicle . ': ' . number_format($calc['monthly']) . ' ج.م × ' . $calc['months'] . ' شهر (' . $calc['plan'] . ')');
+
+        return response()->json(['ok' => true, 'calc' => $calc]);
+    }
+
+    public static function vehicleEntityRules(): array
+    {
+        return [
+            'finance_entity' => ['nullable', 'string', 'max:120'],
+            'entity_branch' => ['nullable', 'string', 'max:120'],
+            'stage' => ['nullable', 'string', 'max:120'],
+        ];
     }
 
     public function destroyVehicle(Customer $customer, \App\Models\CustomerVehicle $vehicle)
@@ -356,6 +419,7 @@ class CustomerController extends Controller
             'dealer' => ['nullable', 'string', 'max:100'],
             'pay_method' => ['required', Rule::in(['كاش', 'تقسيط'])],
             'finance_entity' => ['nullable', 'string', 'max:120'],
+            'entity_branch' => ['nullable', 'string', 'max:120'],
             'stage' => ['nullable', 'string', 'max:120'],
             'total_price' => ['nullable', 'numeric', 'min:0', 'max:999999999'],
             'down_payment' => ['nullable', 'numeric', 'min:0', 'max:999999999'],

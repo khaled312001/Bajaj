@@ -4,7 +4,8 @@
 @section('sub', $from->format('Y/m/d') . ' ← ' . $to->format('Y/m/d'))
 
 @section('content')
-@php($qs = ['from' => $from->toDateString(), 'to' => $to->toDateString(), 'employee' => $emp])
+@php($qs = ['from' => $from->toDateString(), 'to' => $to->toDateString(), 'employee' => $emp] + $opts)
+@php($filters = $meta['filters'] ?? [])
 <div class="card mb no-print">
     <form method="GET" class="card-pad">
         <div class="filter-bar">
@@ -19,9 +20,15 @@
                 <a class="btn btn-ghost" href="{{ route('reports.index') }}">كل التقارير</a>
             </div>
         </div>
+        @if($filters)<div class="filter-bar mt">
+            @if(in_array('entity', $filters, true))<div class="field"><label>جهة التقسيط</label><select class="input" name="entity"><option value="">كل الجهات</option>@foreach(\App\Models\Lookup::list('finance_entity') as $x)<option @selected(($opts['entity'] ?? '') === $x)>{{ $x }}</option>@endforeach</select></div>@endif
+            @if(in_array('branch', $filters, true))<div class="field"><label>فرع الجهة</label><select class="input" name="branch"><option value="">كل الفروع</option>@foreach(\App\Models\Deal::entityBranches() as $x)<option @selected(($opts['branch'] ?? '') === $x)>{{ $x }}</option>@endforeach</select></div>@endif
+            @if(in_array('state', $filters, true))<div class="field"><label>حالة التحويل</label><select class="input" name="state"><option value="">الكل</option>@foreach(\App\Services\ReportService::ENTITY_STATES as $k => $x)<option value="{{ $k }}" @selected(($opts['state'] ?? '') === $k)>{{ $x }}</option>@endforeach</select></div>@endif
+            @if(in_array('result', $filters, true))<div class="field"><label>النتيجة</label><select class="input" name="result"><option value="">الكل</option>@foreach(\App\Services\ReportService::SENT_RESULTS as $k => $x)<option value="{{ $k }}" @selected(($opts['result'] ?? '') === $k)>{{ $x }}</option>@endforeach</select></div>@endif
+        </div>@endif
         <div class="row wrap mt" style="gap:8px">
             @foreach([['اليوم', today(), today()], ['هذا الأسبوع', now()->startOfWeek(), now()], ['هذا الشهر', now()->startOfMonth(), now()], ['الشهر الماضي', now()->subMonth()->startOfMonth(), now()->subMonth()->endOfMonth()], ['آخر 90 يوماً', now()->subDays(90), now()], ['هذه السنة', now()->startOfYear(), now()]] as [$l, $a, $b])
-                <a class="btn btn-xs btn-soft" href="{{ route('reports.show', ['key' => $key, 'from' => $a->toDateString(), 'to' => $b->toDateString(), 'employee' => $emp]) }}">{{ $l }}</a>
+                <a class="btn btn-xs btn-soft" href="{{ route('reports.show', ['key' => $key, 'from' => $a->toDateString(), 'to' => $b->toDateString(), 'employee' => $emp] + $opts) }}">{{ $l }}</a>
             @endforeach
         </div>
     </form>
@@ -36,7 +43,8 @@
 </div>
 @endif
 
-<div class="grid {{ !empty($report['chart']) && count($report['chart']['labels']) ? 'g-main' : '' }}">
+{{-- the finance entity reports have many columns: full width, chart underneath --}}
+<div class="grid {{ !empty($report['chart']) && count($report['chart']['labels']) && ! $filters ? 'g-main' : '' }}">
     @if(!empty($report['chart']) && count($report['chart']['labels']))
         <div class="card" style="order:2">
             <div class="card-head"><h3><i class="fa-solid fa-chart-simple"></i> {{ $report['chart']['label'] }}</h3></div>

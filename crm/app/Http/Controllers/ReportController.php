@@ -22,23 +22,23 @@ class ReportController extends Controller
 
     public function show(Request $request, string $key)
     {
-        [$from, $to, $emp] = $this->params($request);
-        $report = $this->reports->build($key, $from, $to, $emp);
+        [$from, $to, $emp, $opts] = $this->params($request);
+        $report = $this->reports->build($key, $from, $to, $emp, $opts);
 
         return view('reports.show', [
             'report' => $report, 'key' => $key, 'meta' => ReportService::REPORTS[$key],
             'staff' => User::orderBy('name')->get(['id', 'name']),
-            'from' => $from, 'to' => $to, 'emp' => $emp,
+            'from' => $from, 'to' => $to, 'emp' => $emp, 'opts' => $opts,
         ]);
     }
 
     public function export(Request $request, string $key)
     {
-        [$from, $to, $emp] = $this->params($request);
-        $r = $this->reports->build($key, $from, $to, $emp);
-        Activity::log('export', null, 'تصدير تقرير: ' . $r['title'], ['from' => $from->toDateString(), 'to' => $to->toDateString()]);
+        [$from, $to, $emp, $opts] = $this->params($request);
+        $r = $this->reports->build($key, $from, $to, $emp, $opts);
+        Activity::log('export', null, 'تصدير تقرير: ' . $r['title'], ['from' => $from->toDateString(), 'to' => $to->toDateString()] + $opts);
 
-        $summary = ['الفترة' => $from->format('Y/m/d') . ' → ' . $to->format('Y/m/d')];
+        $summary = ['الفترة' => $from->format('Y/m/d') . ' → ' . $to->format('Y/m/d')] + self::optLabels($opts);
         foreach ($r['cards'] as $label => $value) {
             $summary[$label] = $value;
         }
@@ -51,9 +51,12 @@ class ReportController extends Controller
 
     public function pdf(Request $request, string $key)
     {
-        [$from, $to, $emp] = $this->params($request);
-        $r = $this->reports->build($key, $from, $to, $emp);
-        Activity::log('export', null, 'PDF تقرير: ' . $r['title'], ['from' => $from->toDateString(), 'to' => $to->toDateString()]);
+        [$from, $to, $emp, $opts] = $this->params($request);
+        $r = $this->reports->build($key, $from, $to, $emp, $opts);
+        Activity::log('export', null, 'PDF تقرير: ' . $r['title'], ['from' => $from->toDateString(), 'to' => $to->toDateString()] + $opts);
+        if ($opts) {
+            $r['title'] .= ' — ' . implode(' · ', self::optLabels($opts));
+        }
         $pdf = \App\Services\PdfService::render('pdf.report', ['r' => $r, 'from' => $from, 'to' => $to, 'employee' => $emp ? User::find($emp)?->name : null],
             $r['title'], count($r['columns']) > 6, 'تقرير: ' . $r['title']);
 
@@ -64,7 +67,11 @@ class ReportController extends Controller
     {
         $data = $request->validate([
             'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'], 'employee' => ['nullable', 'integer'],
+            'entity' => ['nullable', 'string', 'max:120'], 'branch' => ['nullable', 'string', 'max:120'],
+            'state' => ['nullable', 'in:' . implode(',', array_keys(ReportService::ENTITY_STATES))],
+            'result' => ['nullable', 'in:' . implode(',', array_keys(ReportService::SENT_RESULTS))],
         ]);
+        $opts = array_filter(array_intersect_key($data, array_flip(['entity', 'branch', 'state', 'result'])));
         $from = ! empty($data['from']) ? Carbon::parse($data['from']) : now()->startOfMonth();
         $to = ! empty($data['to']) ? Carbon::parse($data['to']) : now();
 
@@ -73,6 +80,14 @@ class ReportController extends Controller
             $emp = $request->user()->id;   // staff only ever see their own figures
         }
 
-        return [$from, $to, $emp];
+        return [$from, $to, $emp, $opts];
+    }
+
+    private static function optLabels(array $opts): array
+    {
+        return array_filter([
+            'الجهة' => $opts['entity'] ?? null, 'الفرع' => $opts['branch'] ?? null,
+            'الحالة' => ReportService::ENTITY_STATES[$opts['state'] ?? ''] ?? null, 'النتيجة' => ReportService::SENT_RESULTS[$opts['result'] ?? ''] ?? null,
+        ]);
     }
 }

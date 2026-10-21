@@ -50,7 +50,7 @@ class DealService
                 'delivery_date' => ! empty($data['delivery_date']) ? $data['delivery_date'] : null,
                 'notes' => $data['notes'] ?? null,
             ]);
-            foreach (['color', 'dealer', 'po_number', 'sales_order', 'invoice_no', 'treasury_receipt', 'mobaya_no'] as $f) {
+            foreach (['color', 'dealer', 'entity_branch', 'po_number', 'sales_order', 'invoice_no', 'treasury_receipt', 'mobaya_no'] as $f) {
                 if (array_key_exists($f, $data)) {
                     $deal->{$f} = $data[$f] !== '' ? $data[$f] : null;
                 }
@@ -79,7 +79,10 @@ class DealService
                     $deal->monthly_installment = $calc['monthly'];
                     $deal->admin_fees = (float) $calc['fees'];
                 }
-                if (! $deal->first_due_date && $schedule) {
+                if ($deal->isEntityFinanced()) {
+                    // the monthly figure is kept for the offer text; the customer pays it to the entity, so no schedule here
+                    $schedule = [];
+                } elseif (! $deal->first_due_date && $schedule) {
                     $deal->first_due_date = $schedule[0]['due_date'];
                 }
             } else {
@@ -147,10 +150,52 @@ class DealService
         });
     }
 
+    /**
+     * Record the entity's transfer: reference, deposit / collection dates and where the money went.
+     * Once collected it becomes a payment on the deal, so the debt and the collections reports follow it.
+     */
+    public function saveEntityCollection(Deal $deal, array $data, ?User $by = null): Deal
+    {
+        return DB::transaction(function () use ($deal, $data, $by) {
+            foreach (['entity_ref', 'entity_deposited_at', 'entity_collected_at', 'entity_channel', 'entity_account', 'entity_note'] as $f) {
+                $deal->{$f} = ($data[$f] ?? '') !== '' ? $data[$f] : null;
+            }
+            $payment = $deal->entity_payment_id ? Payment::find($deal->entity_payment_id) : null;
+            $others = (float) $deal->payments()->when($payment, fn ($q) => $q->where('id', '!=', $payment->id))->sum('amount');
+            $deal->entity_amount = ($data['entity_amount'] ?? '') !== '' ? (float) $data['entity_amount'] : max(0, round($deal->total_payable - $others, 2));
+
+            if ($deal->entity_collected_at && $deal->entity_amount > 0) {
+                $attrs = [
+                    'deal_id' => $deal->id, 'amount' => $deal->entity_amount, 'paid_on' => $deal->entity_collected_at->toDateString(),
+                    'method' => $deal->entity_channel ?: 'تحويل بنكي',
+                    'note' => mb_substr(implode(' — ', array_filter(['تحصيل من ' . $deal->finance_entity, $deal->entity_ref ? 'مرجع ' . $deal->entity_ref : null, $deal->entity_account])), 0, 200),
+                ];
+                $payment ? $payment->update($attrs) : $payment = Payment::create($attrs + ['received_by' => $by?->id]);
+                $deal->entity_payment_id = $payment->id;
+            } else {
+                $payment?->delete();
+                $deal->entity_payment_id = null;
+            }
+            $deal->save();
+            $deal->reallocatePayments();
+            $deal->recalculate();
+
+            if ($deal->entity_collected_at && $deal->balance <= 0 && $deal->status !== 'منفذة') {
+                $deal->forceFill(['status' => 'منفذة'])->saveQuietly();
+            }
+
+            return $deal;
+        });
+    }
+
     public function deletePayment(Payment $payment): void
     {
         $deal = $payment->deal;
         DB::transaction(function () use ($payment, $deal) {
+            if ((int) $deal->entity_payment_id === (int) $payment->id) {
+                // deleting the entity's transfer puts it back to "not collected"
+                $deal->forceFill(['entity_payment_id' => null, 'entity_collected_at' => null])->saveQuietly();
+            }
             $payment->delete();
             $deal->reallocatePayments();
             $deal->recalculate();
