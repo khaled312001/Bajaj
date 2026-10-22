@@ -242,7 +242,7 @@ class CrmTest extends TestCase
         // financed by أمان: the customer pays the entity, which owes us the remainder (no schedule here)
         $viaAman = $sameer->deals()->where('pay_method', 'تقسيط')->first();
         $this->assertCount(0, $viaAman->installments);
-        $this->assertEquals(240000, $viaAman->balance);
+        $this->assertEquals(240000 - 7200 - 150, $viaAman->balance, 'أمان transfers the financed amount less 3% and 150');
         $this->assertSame('29001011234567', $sameer->nat_id);
         $this->get("/data/import/{$import->id}/result")->assertOk();
         $this->get("/data/import/{$import->id}/errors")->assertOk();

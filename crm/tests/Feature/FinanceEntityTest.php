@@ -48,12 +48,12 @@ class FinanceEntityTest extends TestCase
         $d = $this->deal($c, ['finance_entity' => 'أمان', 'entity_branch' => 'قفط', 'stage' => 'تم الموافقة']);
         $this->assertTrue($d->isEntityFinanced());
         $this->assertSame(0, $d->installments()->count());
-        $this->assertEquals(28000, $d->balance);
+        $this->assertEquals(27010, $d->balance, 'أمان keeps 3% and 150 out of the 28,000');
         $this->assertGreaterThan(0, $d->monthly_installment, 'kept for the offer text');
         $this->assertSame('قفط', $d->entity_branch);
 
         $page = $this->get("/customers/{$c->id}")->assertOk()->assertDontSee('عرض الأقساط')->assertDontSee('سداد الأقساط')
-            ->assertSee('المتبقي (المديونية على أمان)')->assertSee('لم يتم الإيداع')->assertSee('أمان — فرع قفط')->assertSee('28,000.00')
+            ->assertSee('المتبقي (المديونية على أمان)')->assertSee('لم يتم الإيداع')->assertSee('أمان — فرع قفط')->assertSee('27,010.00')->assertSee('الممول 28,000 − 3% (840) − نثريات (150) = 27,010')
             ->assertSee('تسجيل تحويل أمان')->assertDontSee('data-open="m-pay"', false)->assertSee('نسخ للتقسيط')->getContent();
         $this->assertStringNotContainsString('جدول الأقساط</a>', $page);
 
@@ -66,8 +66,10 @@ class FinanceEntityTest extends TestCase
 
     public function test_the_entity_transfer_is_deposited_frozen_then_collected(): void
     {
+        $this->put('/settings/deductions', ['rules' => [['entity' => 'ريفي', 'percent' => 3, 'fixed' => 150, 'first' => 0, 'fees' => 0]]])->assertSessionHasNoErrors();
         $c = $this->customer('عميل ريفي');
         $d = $this->deal($c, ['finance_entity' => 'ريفي']);
+        $this->assertEquals(27010, $d->balance);
 
         // deposited three days ago: frozen, no payment yet
         $this->post("/deals/{$d->id}/entity", ['entity_ref' => 'TRX-5531', 'entity_deposited_at' => today()->subDays(3)->toDateString(), 'entity_channel' => 'تحويل بنكي', 'entity_account' => 'بنك مصر'])
@@ -76,7 +78,7 @@ class FinanceEntityTest extends TestCase
         $this->assertSame('deposited', $d->entity_state);
         $this->assertSame(0, $d->entity_late_days);
         $this->assertSame(0, Payment::count());
-        $this->assertEquals(28000, $d->balance);
+        $this->assertEquals(27010, $d->balance);
         $this->get("/customers/{$c->id}")->assertSee('مجمد — يُحصّل ' . today()->subDays(3)->addDays(Deal::ENTITY_DAYS)->format('Y/m/d'))->assertSee('TRX-5531');
 
         // more than 15 days frozen: late
@@ -92,22 +94,22 @@ class FinanceEntityTest extends TestCase
         $this->assertEquals(0, $d->balance);
         $this->assertSame('منفذة', $d->status);
         $p = Payment::sole();
-        $this->assertEquals(28000, $p->amount);
+        $this->assertEquals(27010, $p->amount, 'the transfer defaults to the net due');
         $this->assertSame('إنستاباي', $p->method);
         $this->assertStringContainsString('تحصيل من ريفي — مرجع TRX-5531', $p->note);
         $this->get("/customers/{$c->id}")->assertSee('تم التحصيل')->assertSee('إنستاباي حساب الشركة');
 
         // saving again edits the same payment; the collections report and dues report follow it
-        $this->post("/deals/{$d->id}/entity", ['entity_amount' => 27500, 'entity_ref' => 'TRX-5531', 'entity_collected_at' => today()->toDateString(), 'entity_channel' => 'نقدي'])->assertSessionHasNoErrors();
+        $this->post("/deals/{$d->id}/entity", ['entity_amount' => 26510, 'entity_ref' => 'TRX-5531', 'entity_collected_at' => today()->toDateString(), 'entity_channel' => 'نقدي'])->assertSessionHasNoErrors();
         $this->assertSame(1, Payment::count());
-        $this->assertEquals(27500, Payment::sole()->amount);
+        $this->assertEquals(26510, Payment::sole()->amount);
         $this->assertEquals(500, $d->fresh()->balance);
-        $this->get('/reports/entity_dues')->assertOk()->assertSee('تم تحصيله في الفترة')->assertSee('27,500.00');
+        $this->get('/reports/entity_dues')->assertOk()->assertSee('تم تحصيله في الفترة')->assertSee('26,510.00');
 
         // deleting the payment puts the transfer back to "not collected"
         $this->delete('/payments/' . Payment::sole()->id)->assertRedirect();
         $this->assertNull($d->fresh()->entity_collected_at);
-        $this->assertEquals(28000, $d->fresh()->balance);
+        $this->assertEquals(27010, $d->fresh()->balance);
 
         // a direct deal has no entity transfer
         $direct = $this->deal($this->customer('مباشر'));

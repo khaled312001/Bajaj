@@ -159,6 +159,7 @@ Route::middleware(['auth', 'guard.app'])->group(function () {
 
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::put('/settings/general', [SettingsController::class, 'updateGeneral'])->name('settings.general');
+        Route::put('/settings/deductions', [SettingsController::class, 'updateDeductions'])->name('settings.deductions');
         Route::post('/settings/lookups', [SettingsController::class, 'storeLookup'])->name('settings.lookups.store');
         Route::post('/settings/geo', [SettingsController::class, 'geo'])->name('settings.geo');
         Route::post('/settings/lookups/{lookup}/toggle', [SettingsController::class, 'toggleLookup'])->name('settings.lookups.toggle');

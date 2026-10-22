@@ -61,6 +61,27 @@
     </div>
 </form>
 
+{{-- what each finance entity keeps out of the financed amount before transferring it to us --}}
+@php($dedRules = \App\Models\Deal::deductionRules())
+@php($dedEntities = collect(\App\Models\Lookup::list('finance_entity'))->merge(array_keys($dedRules))->reject(fn ($e) => ! \App\Models\Deal::isOutsideEntity($e))->unique()->values())
+<form method="POST" action="{{ route('settings.deductions') }}" class="card mb" id="entity-deductions">@csrf @method('PUT')
+    <div class="card-head"><h3><i class="fa-solid fa-building-columns"></i> اللي بتخصمه جهات التقسيط قبل التحويل</h3></div>
+    <div class="card-pad">
+        <div class="hint mb">المديونية على الجهة = المبلغ الممول (السعر − المقدم) ناقص اللي الجهة بتخصمه. مثلاً أمان: 28,000 − 3% (840) − 150 نثريات = 27,010. وتقدر تكتب الصافي بإيدك في أي صفقة.</div>
+        <div class="table-wrap"><table class="tbl">
+            <thead><tr><th>الجهة</th><th>نسبة من الممول %</th><th>مبلغ ثابت / نثريات (ج.م)</th><th>بتخصم أول قسط</th><th>بتخصم المصاريف الإدارية</th></tr></thead>
+            <tbody>@foreach($dedEntities as $i => $e)@php($r = \App\Models\Deal::deductionRule($e))
+                <tr><td><b>{{ $e }}</b><input type="hidden" name="rules[{{ $i }}][entity]" value="{{ $e }}"></td>
+                    <td><input class="input" type="number" step="0.01" min="0" max="50" name="rules[{{ $i }}][percent]" value="{{ $r['percent'] + 0 }}" style="max-width:120px"></td>
+                    <td><input class="input" type="number" step="0.01" min="0" name="rules[{{ $i }}][fixed]" value="{{ $r['fixed'] + 0 }}" style="max-width:140px"></td>
+                    <td><label class="check"><input type="hidden" name="rules[{{ $i }}][first]" value="0"><input type="checkbox" name="rules[{{ $i }}][first]" value="1" @checked($r['first'])> نعم</label></td>
+                    <td><label class="check"><input type="hidden" name="rules[{{ $i }}][fees]" value="0"><input type="checkbox" name="rules[{{ $i }}][fees]" value="1" @checked($r['fees'])> نعم</label></td></tr>
+            @endforeach</tbody>
+        </table></div>
+        <div class="form-actions"><button class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> حفظ الخصومات</button></div>
+    </div>
+</form>
+
 <div class="grid g3">
 @foreach($types as $type => $label)
     <div class="card" id="{{ $type }}">

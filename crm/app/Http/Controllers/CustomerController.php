@@ -119,6 +119,9 @@ class CustomerController extends Controller
     {
         $data = $this->validated($request);
         $this->assertPhoneSlotsNotDuplicate($data);
+        if ($request->boolean('with_deal') && ($conflict = $deals->inventoryConflict($request->input('chassis'), $request->input('motor')))) {
+            return back()->withInput()->withErrors(['chassis' => $conflict]);
+        }
 
         $user = $request->user();
         $data['created_by'] = $user->id;
@@ -164,7 +167,7 @@ class CustomerController extends Controller
         }
 
         $customer->load(['creator:id,name,role', 'assignee:id,name,role']);
-        $deals = $customer->deals()->with(['installments', 'payments.receiver:id,name', 'creator:id,name'])->latest()->get();
+        $deals = $customer->deals()->with(['installments', 'payments.receiver:id,name', 'creator:id,name', 'vehicleUnit:id,deal_id,chassis,status'])->latest()->get();
         $followups = $customer->followups()->with(['assignee:id,name', 'completer:id,name', 'creator:id,name'])->latest('created_at')->latest('id')->get();
         $events = $customer->events()->with('user:id,name')->limit(60)->get();
         $vehicles = $customer->vehicles()->with('creator:id,name')->get();
@@ -420,6 +423,7 @@ class CustomerController extends Controller
             'pay_method' => ['required', Rule::in(['كاش', 'تقسيط'])],
             'finance_entity' => ['nullable', 'string', 'max:120'],
             'entity_branch' => ['nullable', 'string', 'max:120'],
+            'entity_net' => ['nullable', 'numeric', 'min:0', 'max:999999999'],
             'stage' => ['nullable', 'string', 'max:120'],
             'total_price' => ['nullable', 'numeric', 'min:0', 'max:999999999'],
             'down_payment' => ['nullable', 'numeric', 'min:0', 'max:999999999'],

@@ -160,6 +160,7 @@
                     @if($d->sale_date)تاريخ البيع: <b>{{ $d->sale_date->format('Y/m/d') }}</b> · @endif
                     @if($d->dealer)التاجر: <b>{{ $d->dealer }}</b> · @endif
                     @if($d->chassis)الشاسيه: <b class="num">{{ $d->chassis }}</b> · @endif
+                    @if($d->vehicleUnit)المخزن: <span class="badge {{ $d->vehicleUnit->status_class }}">{{ $d->vehicleUnit->status_label }}</span> · @endif
                     @if($d->motor)الموتور: <b class="num">{{ $d->motor }}</b> · @endif
                     @if($d->delivery_date)التسليم: <b>{{ $d->delivery_date->format('Y/m/d') }}</b> · @endif
                     @if($entityDeal)@elseif($d->interest_type === 'table' && $d->installments->count())نظام الشركة · @elseif($d->interest_rate > 0)فائدة {{ rtrim(rtrim(number_format($d->interest_rate, 2), '0'), '.') }}% ({{ $d->interest_type === 'flat' ? 'ثابتة' : 'متناقصة' }}) · @endif
@@ -174,6 +175,7 @@
                     <div class="entity-box">
                         @if($d->entity_state === 'pending')
                             <span><i class="fa-solid fa-building-columns"></i> العميل بيسدد الأقساط لـ <b>{{ $d->finance_entity }}</b> — والجهة تحوّل لنا <b class="num">@money($d->balance)</b> (بعد الإيداع بيتجمد {{ \App\Models\Deal::ENTITY_DAYS }} يوم وبعدها يتحصل)</span>
+                            <span class="muted"><i class="fa-solid fa-calculator"></i> {{ $d->entityNetText() }}</span>
                         @else
                             <span><i class="fa-solid fa-building-columns"></i> المبلغ <b class="num">@money($d->entity_amount)</b></span>
                             @if($d->entity_ref)<span>رقم المرجع <b class="num">{{ $d->entity_ref }}</b></span>@endif
@@ -181,6 +183,7 @@
                             @if($d->entity_collected_at)<span>التحصيل <b>{{ $d->entity_collected_at->format('Y/m/d') }}</b></span>@else<span>موعد التحصيل <b>{{ $d->entity_due_date->format('Y/m/d') }}</b></span>@endif
                             @if($d->entity_channel || $d->entity_account)<span>إلى <b>{{ trim($d->entity_channel . ' ' . $d->entity_account) }}</b></span>@endif
                             @if($d->entity_note)<span class="muted">{{ $d->entity_note }}</span>@endif
+                            <span class="muted"><i class="fa-solid fa-calculator"></i> المستحق: {{ $d->entityNetText() }}</span>
                         @endif
                     </div>
                 @endif
@@ -200,7 +203,7 @@
                 <div class="row between mb-s">
                     <b class="small"><i class="fa-solid fa-money-bill-wave" style="color:var(--green)"></i> الدفعات ({{ $d->payments->count() }}) — المحصّل <span class="num">@money($d->paid_total)</span></b>
                     @if($entityDeal && $canEdit && auth()->user()->allows('payments', 'create'))
-                        <button class="btn btn-sm btn-green no-print" data-open="m-entity" data-action="{{ route('deals.entity', $d) }}" data-fill-entity-label="{{ $d->finance_entity }} — {{ $d->vehicle }}"
+                        <button class="btn btn-sm btn-green no-print" data-open="m-entity" data-action="{{ route('deals.entity', $d) }}" data-fill-entity-label="{{ $d->finance_entity }} — {{ $d->vehicle }}" data-fill-entity-due="{{ number_format($d->total_payable, 2) }} ج.م — {{ $d->entityNetText() }}"
                             data-fill-entity-amount="{{ $d->entity_amount ?: $d->balance }}" data-fill-entity-ref="{{ $d->entity_ref }}" data-fill-entity-deposited-at="{{ $d->entity_deposited_at?->format('Y-m-d') }}"
                             data-fill-entity-collected-at="{{ $d->entity_collected_at?->format('Y-m-d') }}" data-fill-entity-channel="{{ $d->entity_channel ?: 'تحويل بنكي' }}" data-fill-entity-account="{{ $d->entity_account }}" data-fill-entity-note="{{ $d->entity_note }}">
                             <i class="fa-solid fa-building-columns"></i> {{ $d->entity_state === 'pending' ? 'تسجيل تحويل ' . $d->finance_entity : 'تعديل تحويل ' . $d->finance_entity }}</button>
@@ -293,7 +296,9 @@
 <div class="modal" id="m-entity"><div class="modal-box" style="max-width:560px">
     <div class="modal-head"><h3><i class="fa-solid fa-building-columns" style="color:var(--green)"></i> تحويل جهة التقسيط — <span data-label="entity_label"></span></h3><button class="modal-x" data-close="m-entity"><i class="fa-solid fa-xmark"></i></button></div>
     <form method="POST" action="">@csrf
-        <div class="modal-body"><div class="form-grid cols-2">
+        <div class="modal-body">
+            <div class="alert alert-info" style="margin-bottom:12px"><i class="fa-solid fa-circle-info"></i><div>المستحق من الجهة: <b data-label="entity_due"></b><br>تقدر ترجع تعدل أي بيانات هنا أو تمسح تاريخ التحصيل في أي وقت من نفس الزرار.</div></div>
+            <div class="form-grid cols-2">
             <div class="field"><label>المبلغ المحوّل (ج.م)</label><input class="input" type="number" step="0.01" min="0" name="entity_amount"></div>
             <div class="field"><label>رقم المرجع</label><input class="input" name="entity_ref" maxlength="80" dir="ltr" style="text-align:right"></div>
             <div class="field"><label>تاريخ الإيداع</label><input class="input" type="date" name="entity_deposited_at" max="{{ today()->format('Y-m-d') }}"><div class="hint">بيتجمد {{ \App\Models\Deal::ENTITY_DAYS }} يوم وبعدها يتحصل.</div></div>

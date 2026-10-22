@@ -7,6 +7,7 @@ use App\Models\Deal;
 use App\Models\Installment;
 use App\Models\Payment;
 use App\Models\User;
+use App\Models\Vehicle;
 use App\Support\Activity;
 use App\Support\InstallmentCalculator;
 use Carbon\Carbon;
@@ -60,6 +61,15 @@ class DealService
                     $deal->{$f} = ! empty($data[$f]) ? $data[$f] : null;
                 }
             }
+            if (array_key_exists('entity_net', $data)) {
+                $deal->entity_net = ($data['entity_net'] ?? '') !== '' && $data['entity_net'] !== null ? (float) $data['entity_net'] : null;
+            }
+            // a chassis from our stock fills what was left empty on the deal
+            if ($unit = $this->inventoryUnit($deal)) {
+                $deal->motor = $deal->motor ?: $unit->motor;
+                $deal->color = $deal->color ?: $unit->color;
+                $deal->model = $deal->model ?: $unit->model_year;
+            }
             if (array_key_exists('customer_notified', $data)) {
                 $deal->customer_notified = (bool) $data['customer_notified'];
             }
@@ -101,6 +111,7 @@ class DealService
 
             $deal->reallocatePayments();
             $deal->recalculate();
+            $this->syncInventory($deal);
 
             // keep the customer's headline status/vehicle in sync with their latest deal
             if ((int) $customer->deals()->max('id') === (int) $deal->id) {
@@ -144,6 +155,7 @@ class DealService
 
             if ($deal->balance <= 0 && $deal->isInstallment() && $deal->status !== 'منفذة') {
                 $deal->forceFill(['status' => 'منفذة'])->saveQuietly();
+                $this->syncInventory($deal);
             }
 
             return $payment;
@@ -182,10 +194,66 @@ class DealService
 
             if ($deal->entity_collected_at && $deal->balance <= 0 && $deal->status !== 'منفذة') {
                 $deal->forceFill(['status' => 'منفذة'])->saveQuietly();
+                $this->syncInventory($deal);
             }
 
             return $deal;
         });
+    }
+
+    /* ------------------------------------------------------------ the deal's vehicle in our stock */
+
+    /** The stock vehicle with the deal's chassis (or motor when the chassis is empty). */
+    public function inventoryUnit(Deal $deal): ?Vehicle
+    {
+        $chassis = Vehicle::cleanSerial($deal->chassis);
+        $motor = Vehicle::cleanSerial($deal->motor);
+        if ($chassis !== '') {
+            return Vehicle::where('chassis', $chassis)->first();
+        }
+
+        return $motor !== '' ? Vehicle::where('motor', $motor)->first() : null;
+    }
+
+    /** "this chassis is held by another customer's deal" (null when free), checked before saving a deal. */
+    public function inventoryConflict(?string $chassis, ?string $motor, ?int $exceptDeal = null): ?string
+    {
+        $unit = $this->inventoryUnit(new Deal(['chassis' => $chassis, 'motor' => $motor]));
+        $other = $unit?->deal_id && (int) $unit->deal_id !== (int) $exceptDeal ? Deal::with('customer:id,name,code')->find($unit->deal_id) : null;
+
+        return $other ? 'رقم الشاسيه ' . $unit->chassis . ' ' . ($unit->status === 'sold' ? 'مباع' : 'محجوز') . ' في المخزن للعميل ' . $other->customer?->name . ' (' . $other->customer?->code . ')' : null;
+    }
+
+    /**
+     * Saving a deal holds its chassis in stock (محجوزة); once the sale is done it leaves stock (مباعة) with the buyer,
+     * price and date. A lost or deleted deal, or a changed chassis, puts the vehicle back in stock.
+     */
+    public function syncInventory(Deal $deal): ?Vehicle
+    {
+        $unit = $deal->trashed() || $deal->status === 'مفقودة' ? null : $this->inventoryUnit($deal);
+        if ($unit && $unit->deal_id && (int) $unit->deal_id !== (int) $deal->id && Deal::whereKey($unit->deal_id)->exists()) {
+            $unit = null;   // another live deal holds it
+        }
+        foreach (Vehicle::where('deal_id', $deal->id)->when($unit, fn ($q) => $q->whereKeyNot($unit->id))->get() as $old) {
+            $old->update(['status' => 'in_stock', 'deal_id' => null, 'sold_at' => null, 'sale_price' => null]);
+            Activity::log('vehicle', $old, 'رجوع الشاسيه ' . $old->chassis . ' للمخزن (صفقة ' . ($deal->customer?->name ?? '') . ')');
+        }
+        if (! $unit) {
+            return null;
+        }
+
+        $sold = $deal->isSold();
+        $before = [$unit->status, $unit->deal_id];
+        $unit->fill([
+            'deal_id' => $deal->id, 'status' => $sold ? 'sold' : 'reserved',
+            'sold_at' => $sold ? ($unit->status === 'sold' && $unit->sold_at ? $unit->sold_at : ($deal->sale_date ?? $deal->delivery_date ?? today())) : null,
+            'sale_price' => $deal->total_price > 0 ? $deal->total_price : $unit->sale_price,
+        ])->save();
+        if ($before !== [$unit->status, $unit->deal_id]) {
+            Activity::log('vehicle', $unit, 'الشاسيه ' . $unit->chassis . ($sold ? ' مباع' : ' محجوز') . ' للعميل ' . ($deal->customer?->name ?? ''));
+        }
+
+        return $unit;
     }
 
     public function deletePayment(Payment $payment): void

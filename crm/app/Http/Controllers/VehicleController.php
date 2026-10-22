@@ -159,14 +159,14 @@ class VehicleController extends Controller
     {
         $rows = $this->query($request)->with(['deal.customer:id,name', 'batch'])->orderBy('id')->get()->map(fn (Vehicle $v) => [
             $v->chassis, $v->motor, $v->type, $v->model_year, $v->color, $v->source_store, $v->branch_store, $v->cost_price, $v->transport_cost,
-            $v->other_cost, $v->total_cost, $v->arrived_at?->toDateString(), $v->status_label, $v->deal?->customer?->name, $v->sold_at?->toDateString(), $v->sale_price,
+            $v->other_cost, $v->total_cost, $v->arrived_at?->toDateString(), $v->status_label, $v->deal?->customer?->name, $v->deal ? ($v->deal->pay_method === 'كاش' ? 'كاش' : trim('تقسيط ' . $v->deal->finance_entity)) : null, $v->sold_at?->toDateString(), $v->sale_price,
             $v->batch?->permit_no, $v->batch?->sale_order, $v->batch?->invoice_no, $v->batch?->driver,
         ])->all();
         Activity::log('export', null, 'تصدير المخزن (' . count($rows) . ')');
 
         return SheetWriter::download('المخزن-' . now()->format('Y-m-d') . '.xlsx', [[
-            'title' => 'المخزن', 'headers' => ['الشاسيه', 'الموتور', 'النوع', 'السنة', 'اللون', 'من مخزن', 'إلى مخزن', 'سعر المنتج', 'مصاريف نقل', 'أخرى', 'الإجمالي', 'تاريخ الوصول', 'الحالة', 'المشتري', 'تاريخ البيع', 'سعر البيع', 'رقم الإذن', 'أمر البيع', 'رقم الفاتورة', 'السائق المستلم'],
-            'rows' => $rows, 'money' => [8, 9, 10, 11, 16],
+            'title' => 'المخزن', 'headers' => ['الشاسيه', 'الموتور', 'النوع', 'السنة', 'اللون', 'من مخزن', 'إلى مخزن', 'سعر المنتج', 'مصاريف نقل', 'أخرى', 'الإجمالي', 'تاريخ الوصول', 'الحالة', 'المشتري', 'طريقة البيع', 'تاريخ البيع', 'سعر البيع', 'رقم الإذن', 'أمر البيع', 'رقم الفاتورة', 'السائق المستلم'],
+            'rows' => $rows, 'money' => [8, 9, 10, 11, 17],
         ]]);
     }
 

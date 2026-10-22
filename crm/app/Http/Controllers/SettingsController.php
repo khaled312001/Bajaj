@@ -125,6 +125,33 @@ class SettingsController extends Controller
         return back()->with('success', 'تم حفظ الإعدادات.');
     }
 
+    /** What each finance entity keeps before transferring the financed amount; every entity debt follows the new rules. */
+    public function updateDeductions(Request $request)
+    {
+        $data = $request->validate([
+            'rules' => ['required', 'array', 'max:40'],
+            'rules.*.entity' => ['required', 'string', 'max:120'],
+            'rules.*.percent' => ['nullable', 'numeric', 'min:0', 'max:50'],
+            'rules.*.fixed' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+            'rules.*.first' => ['nullable', 'boolean'],
+            'rules.*.fees' => ['nullable', 'boolean'],
+        ]);
+        $rules = [];
+        foreach ($data['rules'] as $r) {
+            $rules[trim($r['entity'])] = ['percent' => (float) ($r['percent'] ?? 0), 'fixed' => (float) ($r['fixed'] ?? 0),
+                'first' => (bool) ($r['first'] ?? false), 'fees' => (bool) ($r['fees'] ?? false)];
+        }
+        Settings::set('entity_deductions', json_encode($rules, JSON_UNESCAPED_UNICODE));
+        $n = 0;
+        \App\Models\Deal::query()->entityFinanced()->get()->each(function ($d) use (&$n) {
+            $d->recalculate();
+            $n++;
+        });
+        Activity::log('settings', null, 'تعديل خصومات جهات التقسيط');
+
+        return back()->with('success', "تم حفظ خصومات جهات التقسيط وإعادة حساب مديونية {$n} صفقة.");
+    }
+
     public function storeLookup(Request $request)
     {
         $data = $request->validate([

@@ -73,14 +73,16 @@
 </div>
 
 <div class="card"><div class="table-wrap"><table class="tbl">
-    <thead><tr><th>الشاسيه</th><th>الموتور</th><th>النوع</th><th>السنة</th><th>اللون</th><th>الحالة</th>@if($isAdmin)<th>الإذن</th><th>المصدر</th><th>التكلفة</th><th>المشتري</th>@endif<th>وصل</th>@if($isAdmin)<th></th>@endif</tr></thead>
+    <thead><tr><th>الشاسيه</th><th>الموتور</th><th>النوع</th><th>السنة</th><th>اللون</th><th>الحالة</th>@if($isAdmin)<th>الإذن</th><th>المصدر</th><th>التكلفة</th><th>المشتري / البيع</th>@endif<th>وصل</th>@if($isAdmin)<th></th>@endif</tr></thead>
     <tbody>
     @forelse($vehicles as $v)
         <tr>
             <td><span class="code" dir="ltr">{{ $mask($v->chassis) }}</span></td><td dir="ltr">{{ $isAdmin ? ($v->motor ?: '—') : '—' }}</td><td>{{ $v->type ?: '—' }}</td><td>{{ $v->model_year ?: '—' }}</td><td>{{ $v->color ?: '—' }}</td>
-            <td><span class="badge dot {{ $v->status_class }}">{{ $v->status_label }}</span></td>
+            <td><span class="badge dot {{ $v->status_class }}">{{ $v->status_label }}</span>@if(! $isAdmin && $v->deal?->customer)<div class="muted small">{{ $v->deal->customer->code }}</div>@endif</td>
             @if($isAdmin)<td class="small">@if($v->batch)<a href="{{ route('vehicles.index', ['batch' => $v->batch_id]) }}">{{ $v->batch->permit_no ?: '#' . $v->batch_id }}</a>@else —@endif</td><td>{{ $v->source_store ?: '—' }}</td><td class="num">{{ $v->total_cost ? number_format($v->total_cost) : '—' }}</td>
-            <td>@if($v->deal?->customer)<a href="{{ route('customers.show', $v->deal->customer) }}">{{ $v->deal->customer->name }}</a>@else —@endif</td>@endif
+            <td>@if($v->deal?->customer)<a href="{{ route('customers.show', $v->deal->customer) }}">{{ $v->deal->customer->name }}</a> <span class="code">{{ $v->deal->customer->code }}</span>
+                <div class="muted small">{{ $v->deal->pay_method === 'كاش' ? 'كاش' : 'تقسيط' . ($v->deal->finance_entity ? ' — ' . $v->deal->finance_entity : '') }}{{ $v->sale_price ? ' · ' . number_format($v->sale_price) . ' ج.م' : '' }}{{ $v->sold_at ? ' · ' . $v->sold_at->format('Y/m/d') : '' }}</div>
+                @elseif($v->status === 'sold' && ($v->sale_price || $v->sold_at))<div class="muted small">{{ $v->sale_price ? number_format($v->sale_price) . ' ج.م' : '' }}{{ $v->sold_at ? ' · ' . $v->sold_at->format('Y/m/d') : '' }}</div>@else —@endif</td>@endif
             <td class="muted small">{{ $v->arrived_at?->format('Y/m/d') ?? '—' }}</td>
             @if($isAdmin)<td class="t-left"><div class="btn-group" style="flex-wrap:nowrap">
                 <button class="btn btn-xs btn-ghost" onclick="document.getElementById('dlg-{{ $v->id }}').showModal()"><i class="fa-solid fa-pen"></i></button>

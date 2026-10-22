@@ -35,6 +35,7 @@
         <div class="field"><label>جهة التقسيط</label><select class="input" name="finance_entity" id="d-entity"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('finance_entity') as $x)<option @selected($v('finance_entity') === $x)>{{ $x }}</option>@endforeach</select></div>
         <div class="field"><label>فرع الجهة</label><input class="input" name="entity_branch" value="{{ $v('entity_branch') }}" maxlength="120" list="deal-entity-branches" placeholder="مثلاً قفط"><datalist id="deal-entity-branches">@foreach(\App\Models\Deal::entityBranches() as $b)<option value="{{ $b }}">@endforeach</datalist></div>
         <div class="alert alert-info" id="entity-hint" style="grid-column:1/-1;display:none;margin:0"><i class="fa-solid fa-building-columns"></i><div>العميل بيسدد الأقساط لجهة التقسيط — الصفقة مش هيتعمل لها جدول أقساط، والمتبقي (السعر − المقدم) هو اللي الجهة هتحوّله للشركة ويتسجل تحصيله من ملف العميل.</div></div>
+        <div class="field" id="entity-net-box" style="display:none"><label>صافي المستحق من الجهة (ج.م)</label><input class="input" type="number" step="0.01" min="0" name="entity_net" id="d-net" value="{{ $v('entity_net') }}"><div class="hint" id="d-net-hint">اتركه فاضي يتحسب تلقائي من خصومات الجهة (من الإعدادات)، أو اكتب الصافي اللي هينزل في الحساب.</div></div>
         <div class="field"><label>مرحلة التقسيط</label><select class="input" name="stage"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('installment_stage') as $x)<option @selected($v('stage') === $x)>{{ $x }}</option>@endforeach</select></div>
         <div class="field"><label>تاريخ أول قسط</label><input class="input" type="date" name="first_due_date" id="d-first" value="{{ $dateVal('first_due_date') }}"><div class="hint">اتركه فارغاً ليبدأ بعد شهر من اليوم.</div></div>
         <div class="field"><label>عدد الأشهر</label><input class="input" type="number" min="0" max="120" name="months" id="d-months" value="{{ $v('months', 12) }}"></div>
@@ -68,7 +69,18 @@
   let timer;
   const csrf = document.querySelector('meta[name=csrf-token]').content;
   const direct = @json(\App\Models\Deal::DIRECT_ENTITIES);
-  const entityHint = () => { const e = $('d-entity').value.trim(); $('entity-hint').style.display = pay.value === 'تقسيط' && e && !direct.includes(e) ? '' : 'none'; };
+  const rules = @json(\App\Models\Deal::deductionRules());
+  const isEntity = () => { const e = $('d-entity').value.trim(); return pay.value === 'تقسيط' && e && !direct.includes(e); };
+  const entityHint = () => { $('entity-hint').style.display = $('entity-net-box').style.display = isEntity() ? '' : 'none'; };
+  // the entity keeps a share of the financed amount: show the automatic net while typing
+  const netHint = (d) => {
+    if (!isEntity()) return;
+    const r = rules[$('d-entity').value.trim()] || {}, fin = Math.max(0, (+$('d-price').value || 0) - (+$('d-down').value || 0));
+    const parts = [[(+r.percent || 0) + '%', fin * (+r.percent || 0) / 100], ['نثريات', +r.fixed || 0], ['أول قسط', r.first ? (+monthly.value || d.monthly || 0) : 0], ['مصاريف إدارية', r.fees ? (+$('d-fees').value || d.fees || 0) : 0]].filter(x => x[1] > 0);
+    const net = Math.max(0, fin - parts.reduce((a, x) => a + x[1], 0));
+    $('d-net').placeholder = fmt(net) + ' (تلقائي)';
+    $('d-net-hint').textContent = 'تلقائي: الممول ' + fmt(fin) + parts.map(x => ' − ' + x[0] + ' (' + fmt(x[1]) + ')').join('') + ' = ' + fmt(net) + ' — أو اكتب الصافي بإيدك.';
+  };
   const toggle = () => { block.style.display = pay.value === 'تقسيط' ? 'contents' : 'none'; entityHint(); if (pay.value === 'تقسيط') run(); };
   $('d-entity').addEventListener('change', entityHint);
   async function run() {
@@ -84,6 +96,7 @@
         if (rate > 0 || $('d-type').value === 'table') { monthly.value = d.monthly.toFixed(2); monthly.readOnly = true; } else { monthly.readOnly = false; if (!monthly.value) monthly.value = d.monthly.toFixed(2); }
         $('s-monthly').textContent = fmt(+monthly.value);
         if ($('d-type').value === 'table' && !$('d-fees').value) $('d-fees').placeholder = fmt(d.fees) + ' (تلقائي)';
+        netHint(d);
       } catch (e) {}
     }, 250);
   }

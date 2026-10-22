@@ -20,6 +20,15 @@ class Deal extends Model
     /** The entity's transfer sits frozen this many days before it can be collected. */
     public const ENTITY_DAYS = 15;
 
+    /**
+     * What each entity keeps out of the financed amount before transferring it to us (editable in Settings):
+     * a percentage of the financed amount, a fixed amount (نثريات), the first installment and/or the admin fees.
+     */
+    public const DEFAULT_DEDUCTIONS = [
+        'أمان' => ['percent' => 3, 'fixed' => 150, 'first' => false, 'fees' => false],
+        'ريفي' => ['percent' => 4, 'fixed' => 0, 'first' => true, 'fees' => false],
+    ];
+
     /** How the entity's money reached us. */
     public const ENTITY_CHANNELS = ['تحويل بنكي', 'إنستاباي', 'نقدي', 'شيك', 'فودافون كاش'];
 
@@ -29,7 +38,7 @@ class Deal extends Model
         'interest_type', 'admin_fees', 'monthly_installment', 'total_payable', 'paid_total', 'balance',
         'first_due_date', 'delivery_date', 'notes', 'created_by',
         'po_number', 'sales_order', 'invoice_no', 'treasury_receipt', 'mobaya_no', 'mobaya_arrived_at', 'mobaya_received_at', 'customer_notified',
-        'entity_amount', 'entity_ref', 'entity_deposited_at', 'entity_collected_at', 'entity_channel', 'entity_account', 'entity_note', 'entity_payment_id',
+        'entity_amount', 'entity_net', 'entity_ref', 'entity_deposited_at', 'entity_collected_at', 'entity_channel', 'entity_account', 'entity_note', 'entity_payment_id',
     ];
 
     protected function casts(): array
@@ -40,7 +49,7 @@ class Deal extends Model
             'total_payable' => 'float', 'paid_total' => 'float', 'balance' => 'float',
             'first_due_date' => 'date', 'delivery_date' => 'date', 'sale_date' => 'date',
             'mobaya_arrived_at' => 'date', 'mobaya_received_at' => 'date', 'customer_notified' => 'boolean',
-            'entity_amount' => 'float', 'entity_deposited_at' => 'date', 'entity_collected_at' => 'date',
+            'entity_amount' => 'float', 'entity_net' => 'float', 'entity_deposited_at' => 'date', 'entity_collected_at' => 'date',
         ];
     }
 
@@ -98,6 +107,63 @@ class Deal extends Model
     {
         return $q->where('deals.pay_method', 'تقسيط')->whereNotNull('deals.finance_entity')->where('deals.finance_entity', '!=', '')
             ->whereNotIn('deals.finance_entity', self::DIRECT_ENTITIES);
+    }
+
+    /** Deduction rules of every entity: the saved settings over the defaults. */
+    public static function deductionRules(): array
+    {
+        $saved = json_decode((string) \App\Support\Settings::get('entity_deductions', ''), true);
+
+        return is_array($saved) ? $saved : self::DEFAULT_DEDUCTIONS;
+    }
+
+    public static function deductionRule(?string $entity): array
+    {
+        return (self::deductionRules()[trim((string) $entity)] ?? []) + ['percent' => 0, 'fixed' => 0, 'first' => false, 'fees' => false];
+    }
+
+    /** [label => amount] the entity keeps out of the financed amount. */
+    public function entityDeductions(): array
+    {
+        $r = self::deductionRule($this->finance_entity);
+        $fin = (float) $this->financed_amount;
+        $pct = rtrim(rtrim(number_format((float) $r['percent'], 2), '0'), '.');
+
+        return array_filter([
+            $pct . '%' => round($fin * (float) $r['percent'] / 100, 2),
+            'نثريات' => round((float) $r['fixed'], 2),
+            'أول قسط' => $r['first'] ? round((float) $this->monthly_installment, 2) : 0,
+            'مصاريف إدارية' => $r['fees'] ? round((float) $this->admin_fees, 2) : 0,
+        ], fn ($v) => $v > 0);
+    }
+
+    /** What the entity actually transfers: typed on the deal, else the financed amount minus the entity's deductions. */
+    public function entityNet(): float
+    {
+        if ($this->entity_net !== null) {
+            return round((float) $this->entity_net, 2);
+        }
+
+        return max(0, round((float) $this->financed_amount - array_sum($this->entityDeductions()), 2));
+    }
+
+    /** "28,000 − 3% (840) − نثريات (150) = 27,010" */
+    public function entityNetText(): string
+    {
+        $f = fn ($v) => number_format($v, 0);
+        if ($this->entity_net !== null) {
+            return 'مكتوب يدوياً: ' . $f($this->entity_net) . ' (الممول ' . $f($this->financed_amount) . ')';
+        }
+        $parts = array_map(fn ($l, $v) => $l . ' (' . $f($v) . ')', array_keys($this->entityDeductions()), $this->entityDeductions());
+
+        return $parts ? 'الممول ' . $f($this->financed_amount) . ' − ' . implode(' − ', $parts) . ' = ' . $f($this->entityNet()) : 'الممول بالكامل ' . $f($this->financed_amount);
+    }
+
+    /** Sale finished: the vehicle left our stock (executed, delivered, or a company installment running). */
+    public function isSold(): bool
+    {
+        return $this->status === 'منفذة' || $this->delivery_date !== null || preg_match('/تم التسليم|تم البيع|تم الصرف/u', (string) $this->stage)
+            || ($this->status === 'جاري التقسيط' && ! $this->isEntityFinanced());
     }
 
     /** collected | deposited (frozen at the entity) | pending (nothing sent yet) */
@@ -160,7 +226,8 @@ class Deal extends Model
             $this->total_payable = $scheduled;
             $balance = $scheduled - $paid;
         } else {
-            $this->total_payable = max(0, $this->total_price - $this->down_payment);
+            // an entity owes us what it actually transfers, after its own deductions
+            $this->total_payable = $this->isEntityFinanced() ? $this->entityNet() : max(0, $this->total_price - $this->down_payment);
             $balance = $this->total_payable - $paid;
         }
 

@@ -29,12 +29,15 @@ class DealController extends Controller
     {
         $this->ensureCanEdit($customer);
         $data = $this->validated($request);
+        if ($conflict = $this->service->inventoryConflict($data['chassis'] ?? null, $data['motor'] ?? null)) {
+            return back()->withInput()->withErrors(['chassis' => $conflict]);
+        }
         $deal = $this->service->save($customer, $data, null, $request->user());
 
         Activity::log('deal.create', $deal, 'إضافة صفقة للعميل ' . $customer->name);
         Activity::customer($customer, 'deal', 'تمت إضافة صفقة: ' . ($deal->vehicle ?: 'غير محدد') . ' — ' . $deal->pay_method);
 
-        return redirect()->route('customers.show', $customer)->withFragment('deals')->with('success', 'تم حفظ الصفقة وجدول الأقساط.');
+        return redirect()->route('customers.show', $customer)->withFragment('deals')->with('success', 'تم حفظ الصفقة.' . $this->stockNote($deal));
     }
 
     public function edit(Deal $deal)
@@ -48,18 +51,22 @@ class DealController extends Controller
     {
         $this->ensureCanEdit($deal->customer);
         $data = $this->validated($request);
+        if ($conflict = $this->service->inventoryConflict($data['chassis'] ?? null, $data['motor'] ?? null, $deal->id)) {
+            return back()->withInput()->withErrors(['chassis' => $conflict]);
+        }
         $this->service->save($deal->customer, $data, $deal, $request->user());
 
         Activity::log('deal.update', $deal, 'تعديل صفقة العميل ' . $deal->customer->name);
         Activity::customer($deal->customer, 'deal', 'تم تعديل الصفقة: ' . ($deal->vehicle ?: 'غير محدد'));
 
-        return redirect()->route('customers.show', $deal->customer)->withFragment('deals')->with('success', 'تم تحديث الصفقة.');
+        return redirect()->route('customers.show', $deal->customer)->withFragment('deals')->with('success', 'تم تحديث الصفقة.' . $this->stockNote($deal->fresh()));
     }
 
     public function destroy(Deal $deal)
     {
         $customer = $deal->customer;
         $deal->delete();
+        $this->service->syncInventory($deal);   // its vehicle goes back to stock
         Activity::log('deal.delete', $deal, 'حذف صفقة العميل ' . $customer->name);
         Activity::customer($customer, 'deal', 'تم حذف صفقة: ' . ($deal->vehicle ?: 'غير محدد'));
 
@@ -122,6 +129,17 @@ class DealController extends Controller
         Activity::log('payment.delete', $payment, 'حذف دفعة ' . number_format($payment->amount, 2) . ' للعميل ' . $deal->customer->name);
 
         return back()->with('success', 'تم حذف الدفعة وإعادة احتساب الأقساط.');
+    }
+
+    /** " الشاسيه X اتسجل مباع في المخزن" — what happened to the vehicle in stock. */
+    private function stockNote(Deal $deal): string
+    {
+        $unit = $deal->vehicleUnit()->first();
+        if ($unit) {
+            return ' الشاسيه ' . $unit->chassis . ($unit->status === 'sold' ? ' اتسجل مباع في المخزن.' : ' اتحجز في المخزن.');
+        }
+
+        return $deal->chassis ? ' (الشاسيه ده مش موجود في المخزن)' : '';
     }
 
     private function validated(Request $request): array
