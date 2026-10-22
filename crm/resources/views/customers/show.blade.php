@@ -174,7 +174,7 @@
                 @if($entityDeal && ($d->financed_amount > 0 || $d->entity_state !== 'pending'))
                     <div class="entity-box">
                         @if($d->entity_state === 'pending')
-                            <span><i class="fa-solid fa-building-columns"></i> العميل بيسدد الأقساط لـ <b>{{ $d->finance_entity }}</b> — والجهة تحوّل لنا <b class="num">@money($d->balance)</b> (بعد الإيداع بيتجمد {{ \App\Models\Deal::ENTITY_DAYS }} يوم وبعدها يتحصل)</span>
+                            <span><i class="fa-solid fa-building-columns"></i> العميل بيسدد الأقساط لـ <b>{{ $d->finance_entity }}</b> — والجهة تحوّل لنا <b class="num">@money($d->balance)</b> (بعد الإيداع بيتجمد {{ $d->entityDays() }} يوم وبعدها يتحصل)</span>
                             <span class="muted"><i class="fa-solid fa-calculator"></i> {{ $d->entityNetText() }}</span>
                         @else
                             <span><i class="fa-solid fa-building-columns"></i> المبلغ <b class="num">@money($d->entity_amount)</b></span>
@@ -203,7 +203,7 @@
                 <div class="row between mb-s">
                     <b class="small"><i class="fa-solid fa-money-bill-wave" style="color:var(--green)"></i> الدفعات ({{ $d->payments->count() }}) — المحصّل <span class="num">@money($d->paid_total)</span></b>
                     @if($entityDeal && $canEdit && auth()->user()->allows('payments', 'create'))
-                        <button class="btn btn-sm btn-green no-print" data-open="m-entity" data-action="{{ route('deals.entity', $d) }}" data-fill-entity-label="{{ $d->finance_entity }} — {{ $d->vehicle }}" data-fill-entity-due="{{ number_format($d->total_payable, 2) }} ج.م — {{ $d->entityNetText() }}"
+                        <button class="btn btn-sm btn-green no-print" data-open="m-entity" data-action="{{ route('deals.entity', $d) }}" data-fill-entity-label="{{ $d->finance_entity }} — {{ $d->vehicle }}" data-fill-entity-days="{{ $d->entityDays() }}" data-fill-entity-due="{{ number_format($d->total_payable, 2) }} ج.م — {{ $d->entityNetText() }}"
                             data-fill-entity-amount="{{ $d->entity_amount ?: $d->balance }}" data-fill-entity-ref="{{ $d->entity_ref }}" data-fill-entity-deposited-at="{{ $d->entity_deposited_at?->format('Y-m-d') }}"
                             data-fill-entity-collected-at="{{ $d->entity_collected_at?->format('Y-m-d') }}" data-fill-entity-channel="{{ $d->entity_channel ?: 'تحويل بنكي' }}" data-fill-entity-account="{{ $d->entity_account }}" data-fill-entity-note="{{ $d->entity_note }}">
                             <i class="fa-solid fa-building-columns"></i> {{ $d->entity_state === 'pending' ? 'تسجيل تحويل ' . $d->finance_entity : 'تعديل تحويل ' . $d->finance_entity }}</button>
@@ -301,7 +301,7 @@
             <div class="form-grid cols-2">
             <div class="field"><label>المبلغ المحوّل (ج.م)</label><input class="input" type="number" step="0.01" min="0" name="entity_amount"></div>
             <div class="field"><label>رقم المرجع</label><input class="input" name="entity_ref" maxlength="80" dir="ltr" style="text-align:right"></div>
-            <div class="field"><label>تاريخ الإيداع</label><input class="input" type="date" name="entity_deposited_at" max="{{ today()->format('Y-m-d') }}"><div class="hint">بيتجمد {{ \App\Models\Deal::ENTITY_DAYS }} يوم وبعدها يتحصل.</div></div>
+            <div class="field"><label>تاريخ الإيداع</label><input class="input" type="date" name="entity_deposited_at" max="{{ today()->format('Y-m-d') }}"><div class="hint">بيتجمد <span data-label="entity_days"></span> يوم وبعدها يتحصل.</div></div>
             <div class="field"><label>تاريخ التحصيل</label><input class="input" type="date" name="entity_collected_at" max="{{ today()->format('Y-m-d') }}"><div class="hint">سيبه فاضي لو الفلوس لسه مجمدة.</div></div>
             <div class="field"><label>اتحصلت على</label><select class="input" name="entity_channel">@foreach(\App\Models\Deal::ENTITY_CHANNELS as $c)<option>{{ $c }}</option>@endforeach</select></div>
             <div class="field"><label>البنك / الحساب</label><input class="input" name="entity_account" maxlength="120" list="entity-accounts" placeholder="مثلاً بنك مصر — حساب الشركة"></div>

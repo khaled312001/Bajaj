@@ -75,13 +75,41 @@ class EntityNetAndStockTest extends TestCase
         $this->assertEquals(27010, $d->fresh()->balance);
 
         // new deductions in settings re-price every open entity debt
-        $this->get('/settings')->assertOk()->assertSee('اللي بتخصمه جهات التقسيط قبل التحويل');
+        $this->get('/settings')->assertOk()->assertSee('جهات التقسيط وشروطها');
         $this->put('/settings/deductions', ['rules' => [['entity' => 'أمان', 'percent' => 0, 'fixed' => 0, 'first' => 0, 'fees' => 0], ['entity' => 'ريفي', 'percent' => 4, 'fixed' => 0, 'first' => 1, 'fees' => 0]]])
             ->assertSessionHasNoErrors();
         $this->assertEquals(28000, $d->fresh()->balance);
         $this->assertEquals(round(28000 - 1120 - $r->monthly_installment, 2), $r->fresh()->balance);
         $agent = User::factory()->create(['username' => 'ag21', 'role' => 'agent', 'must_change_password' => false]);
         $this->actingAs($agent)->put('/settings/deductions', ['rules' => [['entity' => 'أمان', 'percent' => 50]]])->assertForbidden();
+    }
+
+    public function test_a_new_finance_entity_is_added_with_its_own_terms(): void
+    {
+        $this->get('/settings')->assertOk()->assertSee('إضافة جهة تقسيط')->assertSee('مدة التجميد (يوم)')->assertSee('id="ded-new"', false);
+        $rules = collect(\App\Models\Lookup::list('finance_entity'))->values()->map(fn ($e) => ['entity' => $e] + \App\Models\Deal::deductionRule($e))->all();
+        $rules[] = ['entity' => 'فاليو', 'percent' => 5, 'fixed' => 200, 'first' => 0, 'fees' => 1, 'days' => 10];
+        $rules[] = ['entity' => '', 'percent' => 9];   // an untouched new row
+        $this->put('/settings/deductions', ['rules' => $rules])->assertSessionHasNoErrors()
+            ->assertSessionHas('success', fn ($m) => str_contains($m, 'تمت إضافة فاليو لجهات التقسيط'));
+
+        $this->assertContains('فاليو', \App\Models\Lookup::list('finance_entity'));
+        $this->assertEquals(['percent' => 5, 'fixed' => 200, 'first' => false, 'fees' => true, 'days' => 10], \App\Models\Deal::deductionRule('فاليو'));
+        $this->assertEquals(15, \App\Models\Deal::deductionRule('أمان')['days'], 'the others keep their terms');
+        $this->get('/settings')->assertSee('<b>فاليو</b>', false);
+
+        // it is offered on deals and its debt follows its terms: 28,000 − 5% (1,400) − 200 − admin fees
+        $c = $this->customer('عميل فاليو');
+        $this->get("/customers/{$c->id}/deals/create")->assertSee('<option >فاليو</option>', false);
+        [$d] = $this->deal($c, ['finance_entity' => 'فاليو', 'admin_fees' => 1000]);
+        $this->assertTrue($d->isEntityFinanced());
+        $this->assertEquals(28000 - 1400 - 200 - $d->admin_fees, $d->balance);
+        $this->post("/deals/{$d->id}/entity", ['entity_deposited_at' => '2026-10-01'])->assertSessionHasNoErrors();
+        $this->assertSame('2026-10-11', $d->fresh()->entity_due_date->toDateString(), 'frozen 10 days');
+        $this->get("/customers/{$c->id}")->assertSee('data-fill-entity-days="10"', false);
+
+        // the company's own installments can't be turned into an outside entity
+        $this->put('/settings/deductions', ['rules' => [['entity' => 'نظام الشركة', 'percent' => 3]]])->assertSessionHasErrors('rules');
     }
 
     public function test_a_deal_chassis_is_reserved_in_stock_then_sold_with_the_buyer(): void

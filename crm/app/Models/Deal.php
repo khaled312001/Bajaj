@@ -119,7 +119,13 @@ class Deal extends Model
 
     public static function deductionRule(?string $entity): array
     {
-        return (self::deductionRules()[trim((string) $entity)] ?? []) + ['percent' => 0, 'fixed' => 0, 'first' => false, 'fees' => false];
+        return (self::deductionRules()[trim((string) $entity)] ?? []) + ['percent' => 0, 'fixed' => 0, 'first' => false, 'fees' => false, 'days' => self::ENTITY_DAYS];
+    }
+
+    /** Days the entity's transfer stays frozen before we can collect it. */
+    public function entityDays(): int
+    {
+        return (int) self::deductionRule($this->finance_entity)['days'];
     }
 
     /** [label => amount] the entity keeps out of the financed amount. */
@@ -175,7 +181,7 @@ class Deal extends Model
     /** The day the entity's money should be in our hands. */
     public function getEntityDueDateAttribute(): \Carbon\Carbon
     {
-        return ($this->entity_deposited_at ?? $this->sale_date ?? $this->delivery_date ?? $this->created_at)->copy()->startOfDay()->addDays(self::ENTITY_DAYS);
+        return ($this->entity_deposited_at ?? $this->sale_date ?? $this->delivery_date ?? $this->created_at)->copy()->startOfDay()->addDays($this->entityDays());
     }
 
     public function getEntityLateDaysAttribute(): int

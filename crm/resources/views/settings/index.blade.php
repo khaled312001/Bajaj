@@ -61,26 +61,43 @@
     </div>
 </form>
 
-{{-- what each finance entity keeps out of the financed amount before transferring it to us --}}
+{{-- what each finance entity keeps out of the financed amount before transferring it to us; new entities are added here too --}}
 @php($dedRules = \App\Models\Deal::deductionRules())
 @php($dedEntities = collect(\App\Models\Lookup::list('finance_entity'))->merge(array_keys($dedRules))->reject(fn ($e) => ! \App\Models\Deal::isOutsideEntity($e))->unique()->values())
+@php($dedCell = fn ($i, $r) => '<td><input class="input" type="number" step="0.01" min="0" max="50" name="rules[' . $i . '][percent]" value="' . ($r['percent'] + 0) . '" style="max-width:110px"></td>'
+    . '<td><input class="input" type="number" step="0.01" min="0" name="rules[' . $i . '][fixed]" value="' . ($r['fixed'] + 0) . '" style="max-width:130px"></td>'
+    . '<td><label class="check"><input type="hidden" name="rules[' . $i . '][first]" value="0"><input type="checkbox" name="rules[' . $i . '][first]" value="1"' . ($r['first'] ? ' checked' : '') . '> نعم</label></td>'
+    . '<td><label class="check"><input type="hidden" name="rules[' . $i . '][fees]" value="0"><input type="checkbox" name="rules[' . $i . '][fees]" value="1"' . ($r['fees'] ? ' checked' : '') . '> نعم</label></td>'
+    . '<td><input class="input" type="number" step="1" min="0" max="120" name="rules[' . $i . '][days]" value="' . (int) $r['days'] . '" style="max-width:90px"></td>')
 <form method="POST" action="{{ route('settings.deductions') }}" class="card mb" id="entity-deductions">@csrf @method('PUT')
-    <div class="card-head"><h3><i class="fa-solid fa-building-columns"></i> اللي بتخصمه جهات التقسيط قبل التحويل</h3></div>
+    <div class="card-head"><h3><i class="fa-solid fa-building-columns"></i> جهات التقسيط وشروطها</h3>
+        <button type="button" class="btn btn-sm btn-soft" id="ded-add"><i class="fa-solid fa-plus"></i> إضافة جهة تقسيط</button></div>
     <div class="card-pad">
-        <div class="hint mb">المديونية على الجهة = المبلغ الممول (السعر − المقدم) ناقص اللي الجهة بتخصمه. مثلاً أمان: 28,000 − 3% (840) − 150 نثريات = 27,010. وتقدر تكتب الصافي بإيدك في أي صفقة.</div>
+        <div class="hint mb">المديونية على الجهة = المبلغ الممول (السعر − المقدم) ناقص اللي الجهة بتخصمه. مثلاً أمان: 28,000 − 3% (840) − 150 نثريات = 27,010. وتقدر تكتب الصافي بإيدك في أي صفقة.<br>
+            الجهة الجديدة اللي بتضيفها هنا بتظهر على طول في الصفقات والمركبات والفلاتر والتقارير.</div>
+        @error('rules')<div class="alert alert-error mb"><i class="fa-solid fa-circle-exclamation"></i><div>{{ $message }}</div></div>@enderror
         <div class="table-wrap"><table class="tbl">
-            <thead><tr><th>الجهة</th><th>نسبة من الممول %</th><th>مبلغ ثابت / نثريات (ج.م)</th><th>بتخصم أول قسط</th><th>بتخصم المصاريف الإدارية</th></tr></thead>
-            <tbody>@foreach($dedEntities as $i => $e)@php($r = \App\Models\Deal::deductionRule($e))
-                <tr><td><b>{{ $e }}</b><input type="hidden" name="rules[{{ $i }}][entity]" value="{{ $e }}"></td>
-                    <td><input class="input" type="number" step="0.01" min="0" max="50" name="rules[{{ $i }}][percent]" value="{{ $r['percent'] + 0 }}" style="max-width:120px"></td>
-                    <td><input class="input" type="number" step="0.01" min="0" name="rules[{{ $i }}][fixed]" value="{{ $r['fixed'] + 0 }}" style="max-width:140px"></td>
-                    <td><label class="check"><input type="hidden" name="rules[{{ $i }}][first]" value="0"><input type="checkbox" name="rules[{{ $i }}][first]" value="1" @checked($r['first'])> نعم</label></td>
-                    <td><label class="check"><input type="hidden" name="rules[{{ $i }}][fees]" value="0"><input type="checkbox" name="rules[{{ $i }}][fees]" value="1" @checked($r['fees'])> نعم</label></td></tr>
+            <thead><tr><th>الجهة</th><th>نسبة من الممول %</th><th>مبلغ ثابت / نثريات (ج.م)</th><th>بتخصم أول قسط</th><th>بتخصم المصاريف الإدارية</th><th>مدة التجميد (يوم)</th></tr></thead>
+            <tbody id="ded-rows">@foreach($dedEntities as $i => $e)
+                <tr><td><b>{{ $e }}</b><input type="hidden" name="rules[{{ $i }}][entity]" value="{{ $e }}"></td>{!! $dedCell($i, \App\Models\Deal::deductionRule($e)) !!}</tr>
             @endforeach</tbody>
         </table></div>
-        <div class="form-actions"><button class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> حفظ الخصومات</button></div>
+        <template id="ded-new"><tr class="ded-new"><td><input class="input" name="rules[__i__][entity]" maxlength="120" placeholder="اسم الجهة الجديدة"></td>{!! $dedCell('__i__', \App\Models\Deal::deductionRule(null)) !!}</tr></template>
+        <div class="form-actions"><button class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> حفظ الجهات وشروطها</button></div>
     </div>
 </form>
+<script>
+(function () {
+    // each click adds an empty row for a new entity; an empty name is ignored on save
+    let next = {{ count($dedEntities) }};
+    const add = () => {
+        const row = document.getElementById('ded-new').innerHTML.replaceAll('__i__', next++);
+        document.getElementById('ded-rows').insertAdjacentHTML('beforeend', row);
+        document.querySelector('#ded-rows tr:last-child input').focus();
+    };
+    document.getElementById('ded-add').addEventListener('click', add);
+})();
+</script>
 
 <div class="grid g3">
 @foreach($types as $type => $label)

@@ -125,21 +125,37 @@ class SettingsController extends Controller
         return back()->with('success', 'تم حفظ الإعدادات.');
     }
 
-    /** What each finance entity keeps before transferring the financed amount; every entity debt follows the new rules. */
+    /**
+     * What each finance entity keeps before transferring the financed amount, and how long its transfer stays frozen.
+     * A new entity typed here joins the finance entities list; every entity debt follows the new rules.
+     */
     public function updateDeductions(Request $request)
     {
         $data = $request->validate([
-            'rules' => ['required', 'array', 'max:40'],
-            'rules.*.entity' => ['required', 'string', 'max:120'],
+            'rules' => ['required', 'array', 'max:60'],
+            'rules.*.entity' => ['nullable', 'string', 'max:120'],
             'rules.*.percent' => ['nullable', 'numeric', 'min:0', 'max:50'],
             'rules.*.fixed' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'rules.*.first' => ['nullable', 'boolean'],
             'rules.*.fees' => ['nullable', 'boolean'],
-        ]);
+            'rules.*.days' => ['nullable', 'integer', 'min:0', 'max:120'],
+        ], [], ['rules.*.percent' => 'النسبة', 'rules.*.days' => 'مدة التجميد']);
         $rules = [];
+        $added = [];
         foreach ($data['rules'] as $r) {
-            $rules[trim($r['entity'])] = ['percent' => (float) ($r['percent'] ?? 0), 'fixed' => (float) ($r['fixed'] ?? 0),
-                'first' => (bool) ($r['first'] ?? false), 'fees' => (bool) ($r['fees'] ?? false)];
+            $name = trim((string) ($r['entity'] ?? ''));
+            if ($name === '') {
+                continue;   // an empty "new entity" row
+            }
+            if (! \App\Models\Deal::isOutsideEntity($name)) {
+                return back()->withInput()->withErrors(['rules' => "«{$name}» تقسيط مع الشركة نفسها، مش جهة تقسيط خارجية."]);
+            }
+            $rules[$name] = ['percent' => (float) ($r['percent'] ?? 0), 'fixed' => (float) ($r['fixed'] ?? 0),
+                'first' => (bool) ($r['first'] ?? false), 'fees' => (bool) ($r['fees'] ?? false), 'days' => (int) ($r['days'] ?? \App\Models\Deal::ENTITY_DAYS)];
+            if (! Lookup::where('type', 'finance_entity')->where('name', $name)->exists()) {
+                Lookup::create(['type' => 'finance_entity', 'name' => $name, 'sort' => (int) Lookup::where('type', 'finance_entity')->max('sort') + 1]);
+                $added[] = $name;
+            }
         }
         Settings::set('entity_deductions', json_encode($rules, JSON_UNESCAPED_UNICODE));
         $n = 0;
@@ -147,9 +163,10 @@ class SettingsController extends Controller
             $d->recalculate();
             $n++;
         });
-        Activity::log('settings', null, 'تعديل خصومات جهات التقسيط');
+        Activity::log('settings', null, 'تعديل خصومات جهات التقسيط' . ($added ? ' وإضافة: ' . implode('، ', $added) : ''));
 
-        return back()->with('success', "تم حفظ خصومات جهات التقسيط وإعادة حساب مديونية {$n} صفقة.");
+        return back()->with('success', ($added ? 'تمت إضافة ' . implode('، ', $added) . ' لجهات التقسيط. ' : '') . "تم حفظ شروط جهات التقسيط وإعادة حساب مديونية {$n} صفقة.")
+            ->withFragment('entity-deductions');
     }
 
     public function storeLookup(Request $request)
