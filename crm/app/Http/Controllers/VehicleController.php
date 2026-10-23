@@ -23,7 +23,7 @@ class VehicleController extends Controller
         return view('vehicles.index', [
             'batches' => $isAdmin ? VehicleBatch::withCount(['vehicles', 'vehicles as sold_count' => fn ($w) => $w->where('status', 'sold')])->latest('received_at')->latest('id')->limit(12)->get() : collect(),
             'batch' => $isAdmin && $request->query('batch') ? VehicleBatch::withCount('vehicles')->find((int) $request->query('batch')) : null,
-            'vehicles' => (clone $q)->with(['deal.customer:id,name,code', 'batch:id,permit_no,received_at'])->orderByRaw("FIELD(status,'in_stock','reserved','sold')")->latest('arrived_at')->latest('id')->paginate(25)->withQueryString(),
+            'vehicles' => (clone $q)->with(['deal.customer:id,name,code,is_dealer,shop_name', 'batch:id,permit_no,received_at'])->orderByRaw("FIELD(status,'in_stock','reserved','sold')")->latest('arrived_at')->latest('id')->paginate(25)->withQueryString(),
             'stats' => [
                 'in_stock' => (clone $base)->where('status', 'in_stock')->count(),
                 'reserved' => (clone $base)->where('status', 'reserved')->count(),

@@ -41,6 +41,10 @@ class CustomerController extends Controller
                 $q->where(fn ($w) => $w->whereHas('deals', fn ($d) => $d->where($f, $v))->orWhereHas('vehicles', fn ($d) => $d->where($f, $v)));
             }
         }
+        // dealers (تجار / معارض) or retail customers only
+        if (in_array($request->query('kind'), ['dealer', 'customer'], true)) {
+            $q->where('customers.is_dealer', $request->query('kind') === 'dealer');
+        }
         if ($v = $request->query('pay_method')) {
             $q->whereHas('deals', fn ($d) => $d->where('pay_method', $v));
         }
@@ -119,7 +123,7 @@ class CustomerController extends Controller
     {
         $data = $this->validated($request);
         $this->assertPhoneSlotsNotDuplicate($data);
-        if ($request->boolean('with_deal') && ($conflict = $deals->inventoryConflict($request->input('chassis'), $request->input('motor')))) {
+        if ($request->boolean('with_deal') && ($conflict = $deals->inventoryConflict($request->input('chassis'), $request->input('motor'), null, $request->input('units')))) {
             return back()->withInput()->withErrors(['chassis' => $conflict]);
         }
 
@@ -167,7 +171,7 @@ class CustomerController extends Controller
         }
 
         $customer->load(['creator:id,name,role', 'assignee:id,name,role']);
-        $deals = $customer->deals()->with(['installments', 'payments.receiver:id,name', 'creator:id,name', 'vehicleUnit:id,deal_id,chassis,status'])->latest()->get();
+        $deals = $customer->deals()->with(['installments', 'payments.receiver:id,name', 'creator:id,name', 'vehicleUnit:id,deal_id,chassis,status', 'vehicleUnits:id,deal_id,chassis,motor,type,model_year,color,status'])->latest()->get();
         $followups = $customer->followups()->with(['assignee:id,name', 'completer:id,name', 'creator:id,name'])->latest('created_at')->latest('id')->get();
         $events = $customer->events()->with('user:id,name')->limit(60)->get();
         $vehicles = $customer->vehicles()->with('creator:id,name')->get();
@@ -401,6 +405,8 @@ class CustomerController extends Controller
             'seriousness' => ['nullable', 'string', 'max:40'],
             'previous_vehicle' => ['nullable', 'string', 'max:150'],
             'branch' => ['nullable', 'string', 'max:100'],
+            'is_dealer' => ['nullable', 'boolean'],
+            'shop_name' => ['nullable', 'string', 'max:150'],
             'loss_reason' => ['nullable', 'string', 'max:3000'],
             'status' => ['required', Rule::in(Customer::STATUSES)],
             'notes' => ['nullable', 'string', 'max:3000'],
@@ -417,6 +423,7 @@ class CustomerController extends Controller
             'model' => ['nullable', 'string', 'max:100'],
             'chassis' => ['nullable', 'string', 'max:100'],
             'motor' => ['nullable', 'string', 'max:100'],
+            'units' => ['nullable', 'string', 'max:6000'],
             'color' => ['nullable', 'string', 'max:60'],
             'sale_date' => ['nullable', 'date'],
             'dealer' => ['nullable', 'string', 'max:100'],

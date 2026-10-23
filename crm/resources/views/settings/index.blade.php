@@ -68,16 +68,18 @@
     . '<td><input class="input" type="number" step="0.01" min="0" name="rules[' . $i . '][fixed]" value="' . ($r['fixed'] + 0) . '" style="max-width:130px"></td>'
     . '<td><label class="check"><input type="hidden" name="rules[' . $i . '][first]" value="0"><input type="checkbox" name="rules[' . $i . '][first]" value="1"' . ($r['first'] ? ' checked' : '') . '> نعم</label></td>'
     . '<td><label class="check"><input type="hidden" name="rules[' . $i . '][fees]" value="0"><input type="checkbox" name="rules[' . $i . '][fees]" value="1"' . ($r['fees'] ? ' checked' : '') . '> نعم</label></td>'
+    . '<td><input class="input" type="number" step="0.01" min="0" name="rules[' . $i . '][commission]" value="' . ($r['commission'] + 0) . '" style="max-width:110px"></td>'
     . '<td><input class="input" type="number" step="1" min="0" max="120" name="rules[' . $i . '][days]" value="' . (int) $r['days'] . '" style="max-width:90px"></td>')
 <form method="POST" action="{{ route('settings.deductions') }}" class="card mb" id="entity-deductions">@csrf @method('PUT')
     <div class="card-head"><h3><i class="fa-solid fa-building-columns"></i> جهات التقسيط وشروطها</h3>
         <button type="button" class="btn btn-sm btn-soft" id="ded-add"><i class="fa-solid fa-plus"></i> إضافة جهة تقسيط</button></div>
     <div class="card-pad">
         <div class="hint mb">المديونية على الجهة = المبلغ الممول (السعر − المقدم) ناقص اللي الجهة بتخصمه. مثلاً أمان: 28,000 − 3% (840) − 150 نثريات = 27,010. وتقدر تكتب الصافي بإيدك في أي صفقة.<br>
+            لو الجهة بتخصم المصاريف الإدارية: النسبة والنثريات جزء منها فمش بتتخصم مرتين، وعمولتنا (مثلاً 500 جوه مصاريف أمان 3% + 650) بتفضل لينا ومش بتتخصم.<br>
             الجهة الجديدة اللي بتضيفها هنا بتظهر على طول في الصفقات والمركبات والفلاتر والتقارير.</div>
         @error('rules')<div class="alert alert-error mb"><i class="fa-solid fa-circle-exclamation"></i><div>{{ $message }}</div></div>@enderror
         <div class="table-wrap"><table class="tbl">
-            <thead><tr><th>الجهة</th><th>نسبة من الممول %</th><th>مبلغ ثابت / نثريات (ج.م)</th><th>بتخصم أول قسط</th><th>بتخصم المصاريف الإدارية</th><th>مدة التجميد (يوم)</th></tr></thead>
+            <thead><tr><th>الجهة</th><th>نسبة من الممول %</th><th>مبلغ ثابت / نثريات (ج.م)</th><th>بتخصم أول قسط</th><th>بتخصم المصاريف الإدارية</th><th>عمولتنا من المصاريف الإدارية (ج.م)</th><th>مدة التجميد (يوم)</th></tr></thead>
             <tbody id="ded-rows">@foreach($dedEntities as $i => $e)
                 <tr><td><b>{{ $e }}</b><input type="hidden" name="rules[{{ $i }}][entity]" value="{{ $e }}"></td>{!! $dedCell($i, \App\Models\Deal::deductionRule($e)) !!}</tr>
             @endforeach</tbody>

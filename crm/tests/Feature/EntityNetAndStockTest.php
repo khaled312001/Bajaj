@@ -84,6 +84,27 @@ class EntityNetAndStockTest extends TestCase
         $this->actingAs($agent)->put('/settings/deductions', ['rules' => [['entity' => 'أمان', 'percent' => 50]]])->assertForbidden();
     }
 
+    public function test_our_commission_inside_the_admin_fees_is_not_deducted(): void
+    {
+        // أمان keeps 3% + 150 out of the admin fees (3% + 650); the other 500 is our commission
+        $rules = \App\Models\Deal::deductionRules();
+        $set = fn ($commission) => $this->put('/settings/deductions', ['rules' => [['entity' => 'أمان', 'percent' => 3, 'fixed' => 150, 'first' => 0, 'fees' => 1, 'commission' => $commission, 'days' => 15]]
+            + array_map(fn ($e) => ['entity' => $e] + $rules[$e], array_values(array_diff(array_keys($rules), ['أمان'])))])->assertSessionHasNoErrors();
+        $set(500);
+        $this->get('/settings')->assertSee('عمولتنا من المصاريف الإدارية')->assertSee('[commission]" value="500"', false);
+
+        $c = $this->customer('عميل أمان بعمولة');
+        [$d] = $this->deal($c, ['finance_entity' => 'أمان', 'admin_fees' => 1490]);
+        $this->assertEquals(1490, $d->admin_fees);
+        $this->assertEquals(27010, $d->balance, 'the 3% and 150 are not deducted twice and the 500 stays with us');
+        $this->get("/customers/{$c->id}")->assertSee('27,010.00')->assertSee('العمولة 500 من المصاريف الإدارية لينا ومش بتتخصم');
+
+        // without the commission written, the 500 is the entity's too
+        $set(0);
+        $this->assertEquals(26510, $d->fresh()->balance);
+        $this->assertSame('الممول 28,000 − 3% (840) − نثريات (150) − باقي المصاريف الإدارية (500) = 26,510', $d->fresh()->entityNetText());
+    }
+
     public function test_a_new_finance_entity_is_added_with_its_own_terms(): void
     {
         $this->get('/settings')->assertOk()->assertSee('إضافة جهة تقسيط')->assertSee('مدة التجميد (يوم)')->assertSee('id="ded-new"', false);
@@ -94,16 +115,17 @@ class EntityNetAndStockTest extends TestCase
             ->assertSessionHas('success', fn ($m) => str_contains($m, 'تمت إضافة فاليو لجهات التقسيط'));
 
         $this->assertContains('فاليو', \App\Models\Lookup::list('finance_entity'));
-        $this->assertEquals(['percent' => 5, 'fixed' => 200, 'first' => false, 'fees' => true, 'days' => 10], \App\Models\Deal::deductionRule('فاليو'));
+        $this->assertEquals(['percent' => 5, 'fixed' => 200, 'first' => false, 'fees' => true, 'commission' => 0, 'days' => 10], \App\Models\Deal::deductionRule('فاليو'));
         $this->assertEquals(15, \App\Models\Deal::deductionRule('أمان')['days'], 'the others keep their terms');
         $this->get('/settings')->assertSee('<b>فاليو</b>', false);
 
-        // it is offered on deals and its debt follows its terms: 28,000 − 5% (1,400) − 200 − admin fees
+        // it is offered on deals and its debt follows its terms: 28,000 − 5% (1,400) − 200 − what is left of the admin fees
         $c = $this->customer('عميل فاليو');
         $this->get("/customers/{$c->id}/deals/create")->assertSee('<option >فاليو</option>', false);
-        [$d] = $this->deal($c, ['finance_entity' => 'فاليو', 'admin_fees' => 1000]);
+        [$d] = $this->deal($c, ['finance_entity' => 'فاليو', 'admin_fees' => 2000]);
         $this->assertTrue($d->isEntityFinanced());
-        $this->assertEquals(28000 - 1400 - 200 - $d->admin_fees, $d->balance);
+        $this->assertEquals(2000, $d->admin_fees);
+        $this->assertEquals(28000 - 1400 - 200 - 400, $d->balance);
         $this->post("/deals/{$d->id}/entity", ['entity_deposited_at' => '2026-10-01'])->assertSessionHasNoErrors();
         $this->assertSame('2026-10-11', $d->fresh()->entity_due_date->toDateString(), 'frozen 10 days');
         $this->get("/customers/{$c->id}")->assertSee('data-fill-entity-days="10"', false);

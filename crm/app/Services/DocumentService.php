@@ -46,7 +46,8 @@ class DocumentService
                     ['amount', 'المبلغ (ج.م)', 'money'], ['reason', 'وذلك قيمة', 'text', 'قسط'], ['paid_on', 'تاريخ السداد', 'date', now()->toDateString()],
                     ['pay_method', 'طريقة الدفع', 'select', 'كاش', self::RECEIPT_METHODS],
                     ['ref_no', 'رقم المرجع (تحويل بنكي / إنستاباي / محفظة)', 'text'], ['transfer_receipt', 'رقم إيصال التحويل', 'text'],
-                    ['details', 'تفاصيل (اختياري — لو فاضية يفضل المربع فاضي للكتابة باليد)', 'textarea'], ['received_by', 'المستلم (عن الشركة)', 'text']]],
+                    ['details', 'تفاصيل (اختياري — لو فاضية يفضل المربع فاضي للكتابة باليد)', 'textarea'], ['received_by', 'المستلم (عن الشركة)', 'text'],
+                    ['remaining', 'الباقي على الصفقة بعد الدفعة (ج.م — اختياري)', 'money'], ['debt', 'إجمالي مديونية العميل كل الصفقات (ج.م — اختياري)', 'money']]],
             'finance_offer' => ['title' => 'عرض سعر', 'list_title' => 'عرض سعر لجهة التمويل', 'prefix' => 'F', 'agent' => false, 'icon' => 'fa-building-columns', 'group' => 'جهات التمويل', 'desc' => 'عرض السعر المقدم لشركة التمويل (ريفي وغيرها).',
                 'fields' => array_merge([['entity', 'جهة التمويل', 'text', 'ريفي']], [['customer_name', 'اسم العميل', 'text']], $vehicle, [['price', 'السعر (ج.م)', 'money'], ['paid', 'تم دفع (ج.م)', 'money']])],
             'finance_receipt' => ['title' => 'إقرار استلام منتج (جهة تمويل)', 'prefix' => 'FR', 'agent' => false, 'icon' => 'fa-file-signature', 'group' => 'جهات التمويل', 'desc' => 'إقرار التاجر بتسليم المنتج للعميل بموجب التمويل.',
@@ -64,10 +65,12 @@ class DocumentService
             'broker_receipt' => ['title' => 'إقرار استلام سمسار (أمانة)', 'prefix' => 'B', 'agent' => false, 'icon' => 'fa-user-shield', 'group' => 'إقرارات', 'desc' => 'إقرار شخص باستلام مركبة لتوصيلها للعميل على سبيل الأمانة.',
                 'fields' => array_merge([['broker_name', 'اسم المستلم (السمسار)', 'text'], ['broker_nat', 'رقمه القومي', 'text'], ['broker_address', 'عنوانه', 'text']], $vehicle, [['purchase_date', 'تاريخ الشراء', 'date']], [['customer_name', 'لتوصيلها للسيد', 'text'], ['nat_id', 'الرقم القومي للعميل', 'text'], ['address', 'عنوان العميل', 'text'], ['delivered_by', 'تم التسليم بمعرفة', 'text']])],
             // listed as "إقرار استلام كمية", printed as just "إقرار استلام"
-            'bulk_receipt' => ['title' => 'إقرار استلام', 'list_title' => 'إقرار استلام كمية', 'prefix' => 'BK', 'agent' => false, 'icon' => 'fa-boxes-stacked', 'group' => 'إقرارات', 'desc' => 'إقرار استلام أكثر من مركبة (سطر لكل مركبة) لتوصيلها لشخص آخر على سبيل الأمانة.',
+            'bulk_receipt' => ['title' => 'إقرار استلام', 'list_title' => 'إقرار استلام كمية', 'prefix' => 'BK', 'agent' => false, 'icon' => 'fa-boxes-stacked', 'group' => 'إقرارات', 'desc' => 'إقرار استلام أكثر من مركبة (سطر لكل مركبة): تاجر استلمها بنفسه، أو شخص استلمها لتوصيلها لغيره على سبيل الأمانة — وفيه المدفوع والباقي والمديونية.',
                 'fields' => [['customer_name', 'اسم المستلم', 'text'], ['nat_id', 'الرقم القومي', 'text'], ['address', 'العنوان (المقيم)', 'text'],
                     ['items', 'المركبات (سطر لكل مركبة: النوع | الموديل | اللون | الشاسيه | الموتور)', 'textarea'],
-                    ['to_name', 'لتوصيلها للسيد', 'text'], ['to_nat', 'رقمه القومي', 'text'], ['to_address', 'عنوانه (المقيم)', 'text'],
+                    ['to_name', 'لتوصيلها للسيد (سيبه فاضي لو المستلم هو المشتري نفسه — تاجر مثلاً)', 'text'], ['to_nat', 'رقمه القومي', 'text'], ['to_address', 'عنوانه (المقيم)', 'text'],
+                    ['price', 'إجمالي الصفقة (ج.م — اختياري)', 'money'], ['paid', 'المدفوع (ج.م)', 'money'], ['remaining', 'الباقي على الصفقة (ج.م)', 'money'],
+                    ['debt', 'إجمالي مديونية المستلم كل الصفقات (ج.م)', 'money'],
                     ['delivered_by', 'تم التسليم بمعرفة', 'text'], ['phone', 'موبايل المستلم', 'text']]],
             'cash_received' => ['title' => 'إقرار استلام مبلغ نقدي', 'prefix' => 'CR', 'agent' => false, 'icon' => 'fa-hand-holding-dollar', 'group' => 'إقرارات', 'desc' => 'إقرار العميل باستلام مبلغ (مثل الكاش باك) وعدم الرجوع على الشركة.',
                 'fields' => array_merge($person, [['amount', 'المبلغ (ج.م)', 'money'], ['reason', 'وهو عبارة عن', 'text', 'قيمة كامل المبلغ سعر الكاش باك نظير ترخيص السيارة'], ['witness', 'اسم الشاهد (أمام الموظف)', 'text']])],
@@ -107,8 +110,10 @@ class DocumentService
         $p = [];
         if ($customer) {
             $p += [
-                'customer_name' => $customer->name, 'nat_id' => $customer->nat_id, 'address' => trim(implode(' - ', array_filter([$customer->address, $customer->district, $customer->governorate]))),
+                'customer_name' => $customer->display_name, 'nat_id' => $customer->nat_id, 'address' => trim(implode(' - ', array_filter([$customer->address, $customer->district, $customer->governorate]))),
                 'phone' => $customer->phone, 'code' => $customer->code,
+                // what he still owes on all his deals
+                'debt' => round((float) $customer->deals()->where('status', '!=', 'مفقودة')->sum('balance'), 2),
             ];
         }
         if ($deal) {
@@ -117,7 +122,8 @@ class DocumentService
                 'chassis' => $deal->chassis ?: $deal->vehicleUnit?->chassis, 'motor' => $deal->motor ?: $deal->vehicleUnit?->motor,
                 'price' => $deal->total_price ?: null, 'paid' => (float) $deal->down_payment + (float) $deal->paid_total ?: null,
                 'purchase_date' => $deal->sale_date?->toDateString(), 'mobaya_no' => $deal->mobaya_no, 'entity' => $deal->finance_entity,
-                'pay_method' => $deal->pay_method,
+                'pay_method' => $deal->pay_method, 'remaining' => round((float) $deal->balance, 2),
+                'items' => self::bulkItems($deal),
             ];
         }
         if ($payment) {
@@ -125,6 +131,19 @@ class DocumentService
         }
 
         return array_filter($p, fn ($v) => $v !== null && $v !== '');
+    }
+
+    /** "النوع | الموديل | اللون | الشاسيه | الموتور" per vehicle of the deal, from stock when it is there. */
+    public static function bulkItems(Deal $deal): string
+    {
+        $units = $deal->vehicleUnits()->get();
+
+        return implode("\n", array_map(function ($s) use ($deal, $units) {
+            [$chassis, $motor] = $s;
+            $u = Deal::matchUnit($units, $chassis, $motor);
+
+            return implode(' | ', [$u?->type ?: $deal->vehicle, $u?->model_year ?: $deal->model, $u?->color ?: $deal->color, $u?->chassis ?: $chassis, $u?->motor ?: $motor]);
+        }, $deal->serials()));
     }
 
     public static function nextSerial(string $type): int

@@ -60,6 +60,10 @@
         مبلغاً وقدره: <span style="font-size:15pt;color:#2e3192">{{ $amt('amount', 2) }}</span> جنيه مصري@if($words('amount'))<br><span style="font-size:11pt">( {{ $words('amount') }} )</span>@endif</td></tr></table>
     <p class="text serif" style="margin-bottom:0">وذلك قيمة: <b>{{ $v('reason') }}</b> &nbsp;—&nbsp; بتاريخ: <b><bdo dir="ltr">{{ ! empty($d['paid_on']) ? \Illuminate\Support\Carbon::parse($d['paid_on'])->format('d-M-Y') : '................' }}</bdo></b></p>
     <p class="text serif" style="margin:0">طريقة الدفع: <b>{{ $v('pay_method', 'كاش') }}</b></p>
+    @if(($d['remaining'] ?? '') !== '' && $d['remaining'] !== null || ($d['debt'] ?? '') !== '' && $d['debt'] !== null)
+        <p class="text serif" style="margin:0">@if(($d['remaining'] ?? null) !== null && $d['remaining'] !== '')الباقي على الصفقة: <b>{{ number_format((float) $d['remaining']) }} جنيه</b>@endif
+            @if(($d['debt'] ?? null) !== null && $d['debt'] !== '') &nbsp;—&nbsp; إجمالي المديونية: <b>{{ number_format((float) $d['debt']) }} جنيه</b>@endif</p>
+    @endif
     @if(! in_array($d['pay_method'] ?? 'كاش', ['كاش', 'نقدي'], true) || ! empty($d['ref_no']) || ! empty($d['transfer_receipt']))
         <p class="text serif" style="margin:0">رقم المرجع: <b><bdo dir="ltr">{{ $v('ref_no') }}</bdo></b> &nbsp;—&nbsp; رقم إيصال التحويل: <b><bdo dir="ltr">{{ $v('transfer_receipt') }}</bdo></b></p>
     @endif
@@ -133,13 +137,33 @@
         <p class="text serif">وأني استلمت جميع الملحقات الخاصة بها ولا يحق لي أو للغير الرجوع على الشركة، وأتحمل كافة التبعات القانونية والمالية في حالة رجوع الغير على الشركة فيما يخص المركبات موضوع هذا الإقرار.</p>
         {!! $ack($v('customer_name')) !!}
     @else
-        <p class="text serif" style="margin-top:0">وأني استلمت جميع الملحقات الخاصة بها، وذلك لتوصيلها للسيد / <b>{{ $v('to_name') }}</b><br>رقم قومي: {{ $v('to_nat') }} — المقيم / {{ $v('to_address') }}<br>وذلك على سبيل الأمانة، وفي حالة عدم تسليمها أكون خائناً للأمانة وأتحمل كافة المسؤوليات القانونية، وذلك بدون أدنى مسؤولية على الشركة.</p>
-        {{-- delivered by (right) | the person acknowledging (middle) | date and thumbprint further to the left --}}
+        @if(trim((string) ($d['to_name'] ?? '')) === '')
+            {{-- the recipient is the buyer himself (a dealer taking his vehicles): no one to deliver them to, nothing held in trust --}}
+            <p class="text serif" style="margin-top:0">وأني استلمت جميع الملحقات الخاصة بها.</p>
+        @else
+            <p class="text serif" style="margin-top:0">وأني استلمت جميع الملحقات الخاصة بها، وذلك لتوصيلها للسيد / <b>{{ $v('to_name') }}</b><br>رقم قومي: {{ $v('to_nat') }} — المقيم / {{ $v('to_address') }}<br>وذلك على سبيل الأمانة، وفي حالة عدم تسليمها أكون خائناً للأمانة وأتحمل كافة المسؤوليات القانونية، وذلك بدون أدنى مسؤولية على الشركة.</p>
+        @endif
+        {{-- what was paid on these vehicles and what is still owed --}}
+        @php($has = fn ($k) => isset($d[$k]) && $d[$k] !== '' && $d[$k] !== null)
+        @php($money = fn ($k) => number_format((float) $d[$k]) . ' جنيه')
+        @if($has('price') || $has('paid') || $has('remaining') || $has('debt'))
+            @php($mcell = 'padding:' . (1.4 * $gap) . 'mm 3mm;border:0.3mm solid #cbd5e1;font-size:11.5pt;font-weight:bold;white-space:nowrap;text-align:center')
+            @php($parts = array_filter(['إجمالي الصفقة' => $has('price') ? $money('price') : null, 'المدفوع' => $has('paid') ? $money('paid') : null, 'الباقي' => $has('remaining') ? $money('remaining') : null]))
+            <table style="width:100%;border-collapse:collapse;margin:{{ $gap }}mm 0;background:#f8fbff">
+                @if($parts)<tr>@foreach($parts as $label => $amount)<td style="{{ $mcell }}">{{ $label }}: <span style="color:{{ $label === 'الباقي' ? '#b91c1c' : '#2e3192' }}">{{ $amount }}</span></td>@endforeach</tr>@endif
+                @if($has('debt'))<tr><td colspan="{{ max(1, count($parts)) }}" style="{{ $mcell }}">إجمالي المديونية المستحقة عليه حتى تاريخه: <span style="color:#b91c1c">{{ $money('debt') }}</span></td></tr>@endif
+            </table>
+        @endif
+        <p class="text serif" style="margin-top:{{ $gap }}mm">وهذا إقرار مني بذلك.</p>
+        {{-- delivered by (right) | the recipient (middle) | the date with the thumbprint right next to it (left) --}}
         @php($cell = fn (array $lines) => '<table style="width:100%">' . implode('', array_map(fn ($t) => '<tr><td style="padding:' . (1.6 * $gap) . 'mm 0;font-size:12pt;font-weight:bold">' . $t . '</td></tr>', $lines)) . '</table>')
-        <table style="width:100%;margin-top:{{ 5 * $gap }}mm"><tr>
-            <td style="width:33%;vertical-align:top">{!! $cell(['تم التسليم بمعرفة :', 'الاسم : ' . e($v('delivered_by')), 'التوقيع : ................']) !!}</td>
-            <td style="width:37%;vertical-align:top">{!! $cell(array_merge(['وهذا إقرار مني بذلك', 'المستلم : ' . e($v('customer_name'))], ! empty($d['phone']) ? ['الموبايل : ' . e($d['phone'])] : [], ['التوقيع : ................'])) !!}</td>
-            <td style="vertical-align:top">{!! $cell(['التاريخ : ' . e($docDate ?? now()->format('Y/m/d')), 'البصمة :']) !!}<table><tr><td style="width:28mm;height:{{ 20 * min($gap, 1.3) }}mm;border:0.3mm dashed #94a3b8">&nbsp;</td></tr></table></td>
+        <table style="width:100%;margin-top:{{ 4 * $gap }}mm"><tr>
+            <td style="width:31%;vertical-align:top">{!! $cell(['تم التسليم بمعرفة :', 'الاسم : ' . e($v('delivered_by')), 'التوقيع : ................']) !!}</td>
+            <td style="width:35%;vertical-align:top">{!! $cell(array_merge(['المستلم : ' . e($v('customer_name'))], ! empty($d['phone']) ? ['الموبايل : ' . e($d['phone'])] : [], ['التوقيع : ................'])) !!}</td>
+            <td style="vertical-align:top"><table style="width:100%"><tr>
+                <td style="vertical-align:top;padding:{{ 1.6 * $gap }}mm 0;font-size:12pt;font-weight:bold;white-space:nowrap">التاريخ :<br>{{ $docDate ?? now()->format('Y/m/d') }}</td>
+                <td style="vertical-align:top;padding:{{ 1.6 * $gap }}mm 2mm 0 0;font-size:12pt;font-weight:bold">البصمة :<table><tr><td style="width:24mm;height:{{ 18 * min($gap, 1.3) }}mm;border:0.3mm dashed #94a3b8">&nbsp;</td></tr></table></td>
+            </tr></table></td>
         </tr></table>
     @endif
 @break

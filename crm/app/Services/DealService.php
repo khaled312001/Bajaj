@@ -51,7 +51,7 @@ class DealService
                 'delivery_date' => ! empty($data['delivery_date']) ? $data['delivery_date'] : null,
                 'notes' => $data['notes'] ?? null,
             ]);
-            foreach (['color', 'dealer', 'entity_branch', 'po_number', 'sales_order', 'invoice_no', 'treasury_receipt', 'mobaya_no'] as $f) {
+            foreach (['color', 'dealer', 'units', 'entity_branch', 'po_number', 'sales_order', 'invoice_no', 'treasury_receipt', 'mobaya_no'] as $f) {
                 if (array_key_exists($f, $data)) {
                     $deal->{$f} = $data[$f] !== '' ? $data[$f] : null;
                 }
@@ -64,9 +64,13 @@ class DealService
             if (array_key_exists('entity_net', $data)) {
                 $deal->entity_net = ($data['entity_net'] ?? '') !== '' && $data['entity_net'] !== null ? (float) $data['entity_net'] : null;
             }
+            if ($deal->units !== null) {
+                $deal->units = trim($deal->units) !== '' ? trim($deal->units) : null;
+            }
             // a chassis from our stock fills what was left empty on the deal
-            if ($unit = $this->inventoryUnit($deal)) {
-                $deal->motor = $deal->motor ?: $unit->motor;
+            if ($unit = $this->inventoryUnit($deal) ?? $this->inventoryUnits($deal)[0]->first()) {
+                $deal->vehicle = $deal->vehicle ?: $unit->type;
+                $deal->motor = $deal->motor ?: ($deal->chassis ? $unit->motor : null);
                 $deal->color = $deal->color ?: $unit->color;
                 $deal->model = $deal->model ?: $unit->model_year;
             }
@@ -208,52 +212,76 @@ class DealService
     {
         $chassis = Vehicle::cleanSerial($deal->chassis);
         $motor = Vehicle::cleanSerial($deal->motor);
-        if ($chassis !== '') {
-            return Vehicle::where('chassis', $chassis)->first();
-        }
+        $unit = $chassis !== '' ? Vehicle::where('chassis', $chassis)->first() : null;
 
-        return $motor !== '' ? Vehicle::where('motor', $motor)->first() : null;
+        // else by the motor (a batch line may hold only the motor number)
+        return $unit ?? (($motor ?: $chassis) !== '' ? Vehicle::where('motor', $motor ?: $chassis)->first() : null);
     }
 
-    /** "this chassis is held by another customer's deal" (null when free), checked before saving a deal. */
-    public function inventoryConflict(?string $chassis, ?string $motor, ?int $exceptDeal = null): ?string
+    /** @return array{0:\Illuminate\Support\Collection<int,Vehicle>,1:array<int,string>} the deal's stock vehicles, and the serials not found in stock */
+    public function inventoryUnits(Deal $deal): array
     {
-        $unit = $this->inventoryUnit(new Deal(['chassis' => $chassis, 'motor' => $motor]));
-        $other = $unit?->deal_id && (int) $unit->deal_id !== (int) $exceptDeal ? Deal::with('customer:id,name,code')->find($unit->deal_id) : null;
+        $found = collect();
+        $missing = [];
+        foreach ($deal->serials() as [$chassis, $motor]) {
+            $unit = $this->inventoryUnit(new Deal(['chassis' => $chassis, 'motor' => $motor]));
+            if (! $unit) {
+                $missing[] = $chassis ?: $motor;
+            } elseif (! $found->contains('id', $unit->id)) {
+                $found->push($unit);
+            }
+        }
 
-        return $other ? 'رقم الشاسيه ' . $unit->chassis . ' ' . ($unit->status === 'sold' ? 'مباع' : 'محجوز') . ' في المخزن للعميل ' . $other->customer?->name . ' (' . $other->customer?->code . ')' : null;
+        return [$found, $missing];
+    }
+
+    /** "this chassis is held by another customer's deal" (null when all are free), checked before saving a deal. */
+    public function inventoryConflict(?string $chassis, ?string $motor, ?int $exceptDeal = null, ?string $units = null): ?string
+    {
+        [$found] = $this->inventoryUnits(new Deal(['chassis' => $chassis, 'motor' => $motor, 'units' => $units]));
+        foreach ($found as $unit) {
+            $other = $unit->deal_id && (int) $unit->deal_id !== (int) $exceptDeal ? Deal::with('customer:id,name,code')->find($unit->deal_id) : null;
+            if ($other) {
+                return 'رقم الشاسيه ' . $unit->chassis . ' ' . ($unit->status === 'sold' ? 'مباع' : 'محجوز') . ' في المخزن للعميل ' . $other->customer?->name . ' (' . $other->customer?->code . ')';
+            }
+        }
+
+        return null;
     }
 
     /**
-     * Saving a deal holds its chassis in stock (محجوزة); once the sale is done it leaves stock (مباعة) with the buyer,
-     * price and date. A lost or deleted deal, or a changed chassis, puts the vehicle back in stock.
+     * Saving a deal holds its chassis in stock (محجوزة); once the sale is done they leave stock (مباعة) with the buyer,
+     * price and date. A dealer's batch deal holds every chassis it lists, each at its share of the price.
+     * A lost or deleted deal, or a removed chassis, puts the vehicle back in stock.
      */
     public function syncInventory(Deal $deal): ?Vehicle
     {
-        $unit = $deal->trashed() || $deal->status === 'مفقودة' ? null : $this->inventoryUnit($deal);
-        if ($unit && $unit->deal_id && (int) $unit->deal_id !== (int) $deal->id && Deal::whereKey($unit->deal_id)->exists()) {
-            $unit = null;   // another live deal holds it
+        $units = collect();
+        if (! $deal->trashed() && $deal->status !== 'مفقودة') {
+            // a vehicle another live deal holds stays with it
+            $units = $this->inventoryUnits($deal)[0]
+                ->reject(fn (Vehicle $u) => $u->deal_id && (int) $u->deal_id !== (int) $deal->id && Deal::whereKey($u->deal_id)->exists())->values();
         }
-        foreach (Vehicle::where('deal_id', $deal->id)->when($unit, fn ($q) => $q->whereKeyNot($unit->id))->get() as $old) {
+        foreach (Vehicle::where('deal_id', $deal->id)->whereNotIn('id', $units->pluck('id')->all())->get() as $old) {
             $old->update(['status' => 'in_stock', 'deal_id' => null, 'sold_at' => null, 'sale_price' => null]);
             Activity::log('vehicle', $old, 'رجوع الشاسيه ' . $old->chassis . ' للمخزن (صفقة ' . ($deal->customer?->name ?? '') . ')');
         }
-        if (! $unit) {
-            return null;
-        }
 
         $sold = $deal->isSold();
-        $before = [$unit->status, $unit->deal_id];
-        $unit->fill([
-            'deal_id' => $deal->id, 'status' => $sold ? 'sold' : 'reserved',
-            'sold_at' => $sold ? ($unit->status === 'sold' && $unit->sold_at ? $unit->sold_at : ($deal->sale_date ?? $deal->delivery_date ?? today())) : null,
-            'sale_price' => $deal->total_price > 0 ? $deal->total_price : $unit->sale_price,
-        ])->save();
-        if ($before !== [$unit->status, $unit->deal_id]) {
-            Activity::log('vehicle', $unit, 'الشاسيه ' . $unit->chassis . ($sold ? ' مباع' : ' محجوز') . ' للعميل ' . ($deal->customer?->name ?? ''));
+        $price = $deal->total_price > 0 ? round($deal->total_price / $deal->quantity(), 2) : null;
+        foreach ($units as $unit) {
+            $before = [$unit->status, $unit->deal_id];
+            $unit->fill([
+                'deal_id' => $deal->id, 'status' => $sold ? 'sold' : 'reserved',
+                'sold_at' => $sold ? ($unit->status === 'sold' && $unit->sold_at ? $unit->sold_at : ($deal->sale_date ?? $deal->delivery_date ?? today())) : null,
+                'sale_price' => $price ?? $unit->sale_price,
+            ])->save();
+            if ($before !== [$unit->status, $unit->deal_id]) {
+                Activity::log('vehicle', $unit, 'الشاسيه ' . $unit->chassis . ($sold ? ' مباع' : ' محجوز') . ' للعميل ' . ($deal->customer?->display_name ?? ''));
+            }
         }
 
-        return $unit;
+        return $units->first();
     }
 
     public function deletePayment(Payment $payment): void

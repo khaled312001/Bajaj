@@ -138,8 +138,9 @@ class SettingsController extends Controller
             'rules.*.fixed' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'rules.*.first' => ['nullable', 'boolean'],
             'rules.*.fees' => ['nullable', 'boolean'],
+            'rules.*.commission' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'rules.*.days' => ['nullable', 'integer', 'min:0', 'max:120'],
-        ], [], ['rules.*.percent' => 'النسبة', 'rules.*.days' => 'مدة التجميد']);
+        ], [], ['rules.*.percent' => 'النسبة', 'rules.*.days' => 'مدة التجميد', 'rules.*.commission' => 'العمولة']);
         $rules = [];
         $added = [];
         foreach ($data['rules'] as $r) {
@@ -151,7 +152,7 @@ class SettingsController extends Controller
                 return back()->withInput()->withErrors(['rules' => "«{$name}» تقسيط مع الشركة نفسها، مش جهة تقسيط خارجية."]);
             }
             $rules[$name] = ['percent' => (float) ($r['percent'] ?? 0), 'fixed' => (float) ($r['fixed'] ?? 0),
-                'first' => (bool) ($r['first'] ?? false), 'fees' => (bool) ($r['fees'] ?? false), 'days' => (int) ($r['days'] ?? \App\Models\Deal::ENTITY_DAYS)];
+                'first' => (bool) ($r['first'] ?? false), 'fees' => (bool) ($r['fees'] ?? false), 'commission' => (float) ($r['commission'] ?? 0), 'days' => (int) ($r['days'] ?? \App\Models\Deal::ENTITY_DAYS)];
             if (! Lookup::where('type', 'finance_entity')->where('name', $name)->exists()) {
                 Lookup::create(['type' => 'finance_entity', 'name' => $name, 'sort' => (int) Lookup::where('type', 'finance_entity')->max('sort') + 1]);
                 $added[] = $name;

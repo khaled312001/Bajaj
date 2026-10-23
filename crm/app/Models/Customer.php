@@ -20,14 +20,14 @@ class Customer extends Model
     protected $fillable = [
         'code', 'name', 'nat_id', 'job', 'phone', 'alt_phone', 'whatsapp', 'governorate',
         'district', 'address', 'channel', 'interest', 'age', 'seriousness', 'previous_vehicle', 'branch', 'loss_reason',
-        'contacted_at', 'status', 'notes', 'created_by', 'assigned_to',
+        'contacted_at', 'status', 'notes', 'created_by', 'assigned_to', 'is_dealer', 'shop_name',
     ];
 
     protected $hidden = ['nat_id', 'nat_id_hash'];
 
     protected function casts(): array
     {
-        return ['nat_id' => 'encrypted', 'contacted_at' => 'datetime', 'assigned_at' => 'datetime', 'assignment_seen_at' => 'datetime'];
+        return ['nat_id' => 'encrypted', 'is_dealer' => 'boolean', 'contacted_at' => 'datetime', 'assigned_at' => 'datetime', 'assignment_seen_at' => 'datetime'];
     }
 
     protected static function booted(): void
@@ -207,6 +207,14 @@ class Customer extends Model
     }
 
     /* ---- Accessors ---- */
+    /** "علي محمد (معرض ابوعبده - القصير)": a dealer's name with his shop, as printed on his papers. */
+    public function getDisplayNameAttribute(): string
+    {
+        $shop = trim((string) $this->shop_name);
+
+        return $shop !== '' && ! str_contains((string) $this->name, $shop) ? $this->name . ' (' . $shop . ')' : (string) $this->name;
+    }
+
     public function getStatusClassAttribute(): string
     {
         return match ($this->status) {

@@ -28,6 +28,7 @@
             <select class="input" name="vehicle"><option value="">كل المركبات</option>@foreach(\App\Models\Lookup::list('vehicle') as $s)<option @selected(($f['vehicle'] ?? '') === $s)>{{ $s }}</option>@endforeach</select>
             <select class="input" name="finance_entity"><option value="">كل جهات التقسيط</option>@foreach(\App\Models\Lookup::list('finance_entity') as $s)<option @selected(($f['finance_entity'] ?? '') === $s)>{{ $s }}</option>@endforeach</select>
             <select class="input" name="entity_branch"><option value="">كل فروع الجهات</option>@foreach(\App\Models\Deal::entityBranches() as $s)<option @selected(($f['entity_branch'] ?? '') === $s)>{{ $s }}</option>@endforeach</select>
+            <select class="input" name="kind"><option value="">عملاء وتجار</option><option value="customer" @selected(($f['kind'] ?? '') === 'customer')>عملاء فقط</option><option value="dealer" @selected(($f['kind'] ?? '') === 'dealer')>تجار فقط</option></select>
             <select class="input" name="pay_method"><option value="">كاش / تقسيط</option><option @selected(($f['pay_method'] ?? '') === 'كاش')>كاش</option><option @selected(($f['pay_method'] ?? '') === 'تقسيط')>تقسيط</option></select>
             @if($isAdmin)
                 <select class="input" name="created_by"><option value="">أدخله: الكل</option>@foreach($staff as $u)<option value="{{ $u->id }}" @selected(($f['created_by'] ?? '') == $u->id)>{{ $u->name }}</option>@endforeach</select>
@@ -50,7 +51,7 @@
             @forelse($customers as $c)
                 @php($isNew = $c->isNewFor(auth()->user()))
                 <tr @if($isNew) class="row-new" @endif>
-                    <td><a class="person" href="{{ route('customers.show', $c) }}"><div class="avatar sm">{{ mb_substr($c->name, 0, 1) }}</div><div><b>{{ $c->name }}</b>@if($isNew) <span class="badge green" style="font-size:10px">جديد — اتعيّن لك</span>@endif<small><span class="code">{{ $c->code }}</span></small></div></a></td>
+                    <td><a class="person" href="{{ route('customers.show', $c) }}"><div class="avatar sm">{{ mb_substr($c->name, 0, 1) }}</div><div><b>{{ $c->name }}</b>@if($c->is_dealer) <span class="badge purple" style="font-size:10px">تاجر</span>@endif @if($isNew) <span class="badge green" style="font-size:10px">جديد — اتعيّن لك</span>@endif<small><span class="code">{{ $c->code }}</span></small></div></a></td>
                     <td><span class="num">{{ $c->phone }}</span></td>
                     <td>{{ $c->governorate ?: '—' }}</td>
                     <td><span class="badge dot {{ $c->status_class }}">{{ $c->status }}</span>@if($c->seriousness)<div class="xs muted" style="margin-top:3px">{{ $c->seriousness }}</div>@endif</td>

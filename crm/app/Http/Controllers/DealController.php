@@ -29,7 +29,7 @@ class DealController extends Controller
     {
         $this->ensureCanEdit($customer);
         $data = $this->validated($request);
-        if ($conflict = $this->service->inventoryConflict($data['chassis'] ?? null, $data['motor'] ?? null)) {
+        if ($conflict = $this->service->inventoryConflict($data['chassis'] ?? null, $data['motor'] ?? null, null, $data['units'] ?? null)) {
             return back()->withInput()->withErrors(['chassis' => $conflict]);
         }
         $deal = $this->service->save($customer, $data, null, $request->user());
@@ -51,7 +51,7 @@ class DealController extends Controller
     {
         $this->ensureCanEdit($deal->customer);
         $data = $this->validated($request);
-        if ($conflict = $this->service->inventoryConflict($data['chassis'] ?? null, $data['motor'] ?? null, $deal->id)) {
+        if ($conflict = $this->service->inventoryConflict($data['chassis'] ?? null, $data['motor'] ?? null, $deal->id, $data['units'] ?? null)) {
             return back()->withInput()->withErrors(['chassis' => $conflict]);
         }
         $this->service->save($deal->customer, $data, $deal, $request->user());
@@ -128,18 +128,21 @@ class DealController extends Controller
         $this->service->deletePayment($payment);
         Activity::log('payment.delete', $payment, 'حذف دفعة ' . number_format($payment->amount, 2) . ' للعميل ' . $deal->customer->name);
 
-        return back()->with('success', 'تم حذف الدفعة وإعادة احتساب الأقساط.');
+        return back()->with('success', 'تم حذف الصفقة.');
     }
 
-    /** " الشاسيه X اتسجل مباع في المخزن" — what happened to the vehicle in stock. */
+    /** " الشاسيه X اتسجل مباع في المخزن" — what happened to the vehicles in stock. */
     private function stockNote(Deal $deal): string
     {
-        $unit = $deal->vehicleUnit()->first();
-        if ($unit) {
-            return ' الشاسيه ' . $unit->chassis . ($unit->status === 'sold' ? ' اتسجل مباع في المخزن.' : ' اتحجز في المخزن.');
-        }
+        $units = $deal->vehicleUnits()->get();
+        $missing = $this->service->inventoryUnits($deal)[1];
+        $note = match (true) {
+            $units->count() > 1 => ' ' . $units->count() . ' مكن ' . ($units->first()->status === 'sold' ? 'اتسجلوا مباع' : 'اتحجزوا') . ' في المخزن باسم ' . $deal->customer->display_name . '.',
+            $units->count() === 1 => ' الشاسيه ' . $units->first()->chassis . ($units->first()->status === 'sold' ? ' اتسجل مباع في المخزن.' : ' اتحجز في المخزن.'),
+            default => '',
+        };
 
-        return $deal->chassis ? ' (الشاسيه ده مش موجود في المخزن)' : '';
+        return $note . ($missing ? ' (مش موجود في المخزن: ' . implode('، ', $missing) . ')' : '');
     }
 
     private function validated(Request $request): array

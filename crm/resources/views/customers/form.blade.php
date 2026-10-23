@@ -21,6 +21,9 @@
             <div class="field"><label>هاتف بديل</label><input class="input" name="alt_phone" value="{{ old('alt_phone', $customer->alt_phone) }}" inputmode="tel" dir="ltr" style="text-align:right"></div>
             <div class="field"><label>واتساب</label><input class="input" name="whatsapp" value="{{ old('whatsapp', $customer->whatsapp) }}" inputmode="tel" dir="ltr" style="text-align:right"></div>
             <div class="field"><label>المهنة</label><input class="input" name="job" value="{{ old('job', $customer->job) }}"></div>
+            <div class="field"><label class="check" style="margin-top:28px"><input type="hidden" name="is_dealer" value="0"><input type="checkbox" name="is_dealer" value="1" id="f-dealer" @checked(old('is_dealer', $customer->is_dealer))> تاجر / معرض (بياخد كمية)</label>
+                <div class="hint">التاجر مش عميل عادي: بتسجل له صفقة بكل المكن اللي خدها وبتتخصم من المخزن مباعة باسمه.</div></div>
+            <div class="field span-2" id="f-shop-box"><label>اسم المعرض / المحل</label><input class="input" name="shop_name" value="{{ old('shop_name', $customer->shop_name) }}" maxlength="150" placeholder="مثلاً معرض ابوعبده - القصير"></div>
 
             <div class="form-section"><i class="fa-solid fa-location-dot"></i> العنوان والتصنيف</div>
             @include('partials.geo_fields', ['govValue' => old('governorate', $customer->governorate), 'centerValue' => old('district', $customer->district)])
@@ -38,6 +41,14 @@
             @endif
             <div class="field span-3"><label>سبب عدم إتمام البيع</label><textarea class="input" name="loss_reason" rows="2">{{ old('loss_reason', $customer->loss_reason) }}</textarea></div>
             <div class="field span-3"><label>ملاحظات</label><textarea class="input" name="notes" rows="3">{{ old('notes', $customer->notes) }}</textarea></div>
+
+            <script>
+            (function () {
+                const box = document.getElementById('f-dealer'), shop = document.getElementById('f-shop-box');
+                const sync = () => { shop.style.display = box.checked ? '' : 'none'; };
+                box.addEventListener('change', sync); sync();
+            })();
+            </script>
 
             @unless($editing)
             <div class="form-section" style="margin-top:14px"><i class="fa-solid fa-car"></i> الصفقة والتقسيط <label class="check" style="margin-right:auto"><input type="checkbox" name="with_deal" value="1" id="with-deal" @checked(old('with_deal'))> إضافة صفقة الآن</label></div>

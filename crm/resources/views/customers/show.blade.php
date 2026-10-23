@@ -13,7 +13,7 @@
 <div class="profile-head mb">
     <div class="avatar lg">{{ mb_substr($customer->name, 0, 1) }}</div>
     <div class="grow">
-        <h2>{{ $customer->name }}</h2>
+        <h2>{{ $customer->name }}@if($customer->is_dealer) <span class="badge purple" style="font-size:12px;vertical-align:middle"><i class="fa-solid fa-store"></i> تاجر{{ $customer->shop_name && ! str_contains($customer->name, $customer->shop_name) ? ' — ' . $customer->shop_name : '' }}</span>@endif</h2>
         <div class="meta">
             <span><span class="code">{{ $customer->code }}</span></span>
             <span><i class="fa-solid fa-phone"></i> <span class="num">{{ $customer->phone }}</span></span>
@@ -125,16 +125,27 @@
     </div>
 
     <div id="deals">
+    @if($customer->is_dealer && $deals->count())
+        {{-- the dealer's wholesale account: every batch he took, what he paid and what he still owes --}}
+        @php($liveDeals = $deals->where('status', '!=', 'مفقودة'))
+        <div class="card mb dealer-sum"><div class="card-body grid g4">
+            <div class="kv" style="display:block"><span>صفقات التاجر</span><br><b class="num">{{ $liveDeals->count() }}</b> <span class="muted small">({{ $liveDeals->sum(fn ($x) => $x->quantity()) }} مكنة)</span></div>
+            <div class="kv" style="display:block"><span>إجمالي الصفقات</span><br><b class="num">@money($liveDeals->sum('total_price'))</b></div>
+            <div class="kv" style="display:block"><span>المدفوع</span><br><b class="num" style="color:var(--green)">@money($liveDeals->sum(fn ($x) => $x->down_payment + $x->paid_total))</b></div>
+            <div class="kv" style="display:block"><span>الباقي عليه (المديونية)</span><br><b class="num" style="color:{{ $totalDebt > 0 ? 'var(--red)' : 'var(--green)' }}">@money($totalDebt)</b></div>
+        </div></div>
+    @endif
     @forelse($deals as $d)
         @php($paidPct = $d->total_payable > 0 ? min(100, $d->paid_total / $d->total_payable * 100) : 0)
         @php($installmentCopyText = $d->installmentCopyText())
         @php($entityDeal = $d->isEntityFinanced())
         <div class="card" style="margin-bottom:18px">
             <div class="card-head">
-                <h3><i class="fa-solid fa-car"></i> {{ $d->vehicle ?: 'صفقة' }} {{ $d->model }} <span class="badge {{ $d->status_class }}">{{ $d->status }}</span> <span class="badge gray">{{ $d->pay_method }}</span></h3>
+                <h3><i class="fa-solid fa-car"></i> {{ $d->vehicle ?: 'صفقة' }} {{ $d->model }}@if($d->quantity() > 1) <span class="badge purple">{{ $d->quantity() }} مكن</span>@endif <span class="badge {{ $d->status_class }}">{{ $d->status }}</span> <span class="badge gray">{{ $d->pay_method }}</span></h3>
                 <div class="btn-group no-print">
                     @if($installmentCopyText)<button type="button" class="btn btn-xs btn-ghost" data-copy-text="{{ $installmentCopyText }}"><i class="fa-solid fa-copy" style="color:var(--blue-600)"></i> نسخ للتقسيط</button>@endif
                     @if($canEdit && $d->installments->count())<a class="btn btn-xs btn-ghost" href="{{ route('documents.create', ['type' => 'statement', 'deal' => $d->id]) }}"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> كشف PDF</a>@endif
+                    @if($canEdit && ($d->quantity() > 1 || $customer->is_dealer) && auth()->user()->allows('legal_documents', 'create'))<a class="btn btn-xs btn-ghost" href="{{ route('documents.create', ['type' => 'bulk_receipt', 'deal' => $d->id]) }}"><i class="fa-solid fa-boxes-stacked" style="color:#dc2626"></i> إقرار استلام كمية</a>@endif
                     @if($canEdit)<a class="btn btn-xs btn-ghost" href="{{ route('documents.index', ['deal' => $d->id]) }}"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> مستندات</a>@endif
                     @if($d->installments->count())<a class="btn btn-xs btn-ghost" href="{{ route('deals.schedule', $d) }}"><i class="fa-solid fa-table-list"></i> جدول الأقساط</a>@endif
                     @if($canEdit && auth()->user()->allows('deals', 'edit'))<a class="btn btn-xs btn-ghost" href="{{ route('deals.edit', $d) }}"><i class="fa-solid fa-pen"></i></a>@endif
@@ -170,6 +181,17 @@
                     @if($d->po_number)PO: <b class="num">{{ $d->po_number }}</b> · @endif
                     أدخلها: {{ $d->creator?->name ?? '—' }}
                 </div>
+                @if($d->quantity() > 1)
+                    {{-- every chassis of the batch and where it stands in stock --}}
+                    <div class="table-wrap mb-s"><table class="tbl small">
+                        <thead><tr><th>#</th><th>الشاسيه</th><th>الموتور</th><th>النوع</th><th>المخزن</th></tr></thead>
+                        <tbody>@foreach($d->serials() as $i => [$ch, $mo])
+                            @php($u = \App\Models\Deal::matchUnit($d->vehicleUnits, $ch, $mo))
+                            <tr><td>{{ $i + 1 }}</td><td class="num" dir="ltr">{{ $u?->chassis ?? $ch }}</td><td class="num" dir="ltr">{{ $u?->motor ?? $mo ?: '—' }}</td><td>{{ $u?->type ?? '—' }}</td>
+                                <td>@if($u)<span class="badge {{ $u->status_class }}">{{ $u->status_label }}</span>@else<span class="badge gray">مش في المخزن</span>@endif</td></tr>
+                        @endforeach</tbody>
+                    </table></div>
+                @endif
 
                 @if($entityDeal && ($d->financed_amount > 0 || $d->entity_state !== 'pending'))
                     <div class="entity-box">

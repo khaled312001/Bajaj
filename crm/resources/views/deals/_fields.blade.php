@@ -15,6 +15,14 @@
     <div class="field"><label>اللون</label><input class="input" name="color" value="{{ $v('color') }}"></div>
     <div class="field"><label>تاريخ البيع</label><input class="input" type="date" name="sale_date" value="{{ $dateVal('sale_date') }}"></div>
     <div class="field"><label>الشاسيه تابع التاجر</label><input class="input" name="dealer" value="{{ $v('dealer') }}"></div>
+    {{-- a dealer takes several vehicles in one deal: every chassis listed here leaves stock in his name --}}
+    @php($isDealer = (bool) ($customer->is_dealer ?? false))
+    <details class="span-3" id="units-box" @if($isDealer || $v('units')) open @endif style="grid-column:1/-1">
+        <summary class="small" style="cursor:pointer;font-weight:700"><i class="fa-solid fa-boxes-stacked"></i> صفقة كمية — أكتر من مكنة{{ $isDealer ? ' (تاجر)' : '' }}</summary>
+        <div class="field" style="margin-top:8px"><label>شاسيهات باقي المكن (سطر لكل مكنة)</label>
+            <textarea class="input" name="units" rows="4" dir="ltr" style="text-align:left;font-family:monospace" placeholder="CAAA21BZ1VC256956&#10;CAAA21BZ2VC256920 | TE71093">{{ $v('units') }}</textarea>
+            <div class="hint">اكتب الشاسيه (أو الشاسيه | الموتور) لكل مكنة غير اللي فوق. كلهم بيتخصموا من المخزن{{ $isDealer ? ' مباعين باسم التاجر' : '' }}، والسعر الإجمالي فوق = سعر كل المكن، وسعر المكنة في المخزن = الإجمالي ÷ العدد.</div></div>
+    </details>
 
     <div class="form-section"><i class="fa-solid fa-file-invoice"></i> سجل المبيعات والمبايعة</div>
     <div class="field"><label>PO</label><input class="input" name="po_number" value="{{ $v('po_number') }}" dir="ltr" style="text-align:right"></div>
@@ -76,7 +84,10 @@
   const netHint = (d) => {
     if (!isEntity()) return;
     const r = rules[$('d-entity').value.trim()] || {}, fin = Math.max(0, (+$('d-price').value || 0) - (+$('d-down').value || 0));
-    const parts = [[(+r.percent || 0) + '%', fin * (+r.percent || 0) / 100], ['نثريات', +r.fixed || 0], ['أول قسط', r.first ? (+monthly.value || d.monthly || 0) : 0], ['مصاريف إدارية', r.fees ? (+$('d-fees').value || d.fees || 0) : 0]].filter(x => x[1] > 0);
+    // same as Deal::entityDeductions(): the admin fees minus our commission, minus the percentage and نثريات already deducted
+    const pct = fin * (+r.percent || 0) / 100, fixed = +r.fixed || 0;
+    const fees = r.fees ? Math.max(0, (+$('d-fees').value || d.fees || 0) - (+r.commission || 0) - pct - fixed) : 0;
+    const parts = [[(+r.percent || 0) + '%', pct], ['نثريات', fixed], ['أول قسط', r.first ? (+monthly.value || d.monthly || 0) : 0], [pct + fixed > 0 ? 'باقي المصاريف الإدارية' : 'مصاريف إدارية', fees]].filter(x => x[1] > 0);
     const net = Math.max(0, fin - parts.reduce((a, x) => a + x[1], 0));
     $('d-net').placeholder = fmt(net) + ' (تلقائي)';
     $('d-net-hint').textContent = 'تلقائي: الممول ' + fmt(fin) + parts.map(x => ' − ' + x[0] + ' (' + fmt(x[1]) + ')').join('') + ' = ' + fmt(net) + ' — أو اكتب الصافي بإيدك.';

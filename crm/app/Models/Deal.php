@@ -23,17 +23,18 @@ class Deal extends Model
     /**
      * What each entity keeps out of the financed amount before transferring it to us (editable in Settings):
      * a percentage of the financed amount, a fixed amount (نثريات), the first installment and/or the admin fees.
+     * Our commission sits inside the admin fees and stays with us, so it is never part of what the entity keeps.
      */
     public const DEFAULT_DEDUCTIONS = [
-        'أمان' => ['percent' => 3, 'fixed' => 150, 'first' => false, 'fees' => false],
-        'ريفي' => ['percent' => 4, 'fixed' => 0, 'first' => true, 'fees' => false],
+        'أمان' => ['percent' => 3, 'fixed' => 150, 'first' => false, 'fees' => false, 'commission' => 0],
+        'ريفي' => ['percent' => 4, 'fixed' => 0, 'first' => true, 'fees' => false, 'commission' => 0],
     ];
 
     /** How the entity's money reached us. */
     public const ENTITY_CHANNELS = ['تحويل بنكي', 'إنستاباي', 'نقدي', 'شيك', 'فودافون كاش'];
 
     protected $fillable = [
-        'customer_id', 'vehicle', 'model', 'chassis', 'motor', 'color', 'sale_date', 'dealer', 'pay_method', 'finance_entity', 'entity_branch', 'stage',
+        'customer_id', 'vehicle', 'model', 'chassis', 'motor', 'units', 'color', 'sale_date', 'dealer', 'pay_method', 'finance_entity', 'entity_branch', 'stage',
         'status', 'total_price', 'down_payment', 'financed_amount', 'months', 'interest_rate',
         'interest_type', 'admin_fees', 'monthly_installment', 'total_payable', 'paid_total', 'balance',
         'first_due_date', 'delivery_date', 'notes', 'created_by',
@@ -56,6 +57,44 @@ class Deal extends Model
     public function vehicleUnit(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(Vehicle::class);
+    }
+
+    /** Every stock vehicle held by this deal (a dealer's batch holds several). */
+    public function vehicleUnits(): HasMany
+    {
+        return $this->hasMany(Vehicle::class)->orderBy('id');
+    }
+
+    /**
+     * [[chassis, motor], ...]: the deal's own chassis first, then one per line of a batch deal
+     * (a line is "chassis" or "chassis | motor"; spaces, commas and | all separate them).
+     */
+    public function serials(): array
+    {
+        $all = trim((string) $this->chassis) !== '' || trim((string) $this->motor) !== '' ? [[trim((string) $this->chassis), trim((string) $this->motor)]] : [];
+        foreach (preg_split('/\R+/u', (string) $this->units) as $line) {
+            $parts = preg_split('/[\s|,،]+/u', trim($line), -1, PREG_SPLIT_NO_EMPTY);
+            if ($parts) {
+                $all[] = [$parts[0], $parts[1] ?? ''];
+            }
+        }
+
+        return $all;
+    }
+
+    /** The vehicle of one serial line among the deal's stock vehicles (by chassis, else by motor). */
+    public static function matchUnit($units, string $chassis, string $motor): ?Vehicle
+    {
+        $c = Vehicle::cleanSerial($chassis);
+        $m = Vehicle::cleanSerial($motor ?: $chassis);
+
+        return $units->first(fn ($x) => $c !== '' && $x->chassis === $c) ?? $units->first(fn ($x) => $m !== '' && $x->motor === $m);
+    }
+
+    /** How many vehicles the deal sells (1 for a normal deal). */
+    public function quantity(): int
+    {
+        return max(1, count($this->serials()));
     }
 
     public function customer(): BelongsTo
@@ -119,7 +158,7 @@ class Deal extends Model
 
     public static function deductionRule(?string $entity): array
     {
-        return (self::deductionRules()[trim((string) $entity)] ?? []) + ['percent' => 0, 'fixed' => 0, 'first' => false, 'fees' => false, 'days' => self::ENTITY_DAYS];
+        return (self::deductionRules()[trim((string) $entity)] ?? []) + ['percent' => 0, 'fixed' => 0, 'first' => false, 'fees' => false, 'commission' => 0, 'days' => self::ENTITY_DAYS];
     }
 
     /** Days the entity's transfer stays frozen before we can collect it. */
@@ -128,19 +167,34 @@ class Deal extends Model
         return (int) self::deductionRule($this->finance_entity)['days'];
     }
 
-    /** [label => amount] the entity keeps out of the financed amount. */
+    /**
+     * [label => amount] the entity keeps out of the financed amount.
+     * The admin fees hold the entity's percentage and نثريات plus our commission: only what is left of them
+     * after our commission and after the percentage and نثريات (already deducted) is deducted, never twice.
+     */
     public function entityDeductions(): array
     {
         $r = self::deductionRule($this->finance_entity);
         $fin = (float) $this->financed_amount;
         $pct = rtrim(rtrim(number_format((float) $r['percent'], 2), '0'), '.');
+        $pctAmount = round($fin * (float) $r['percent'] / 100, 2);
+        $fixed = round((float) $r['fixed'], 2);
+        $fees = $r['fees'] ? max(0, round((float) $this->admin_fees - (float) $r['commission'] - $pctAmount - $fixed, 2)) : 0;
 
         return array_filter([
-            $pct . '%' => round($fin * (float) $r['percent'] / 100, 2),
-            'نثريات' => round((float) $r['fixed'], 2),
+            $pct . '%' => $pctAmount,
+            'نثريات' => $fixed,
             'أول قسط' => $r['first'] ? round((float) $this->monthly_installment, 2) : 0,
-            'مصاريف إدارية' => $r['fees'] ? round((float) $this->admin_fees, 2) : 0,
+            ($pctAmount + $fixed > 0 ? 'باقي المصاريف الإدارية' : 'مصاريف إدارية') => $fees,
         ], fn ($v) => $v > 0);
+    }
+
+    /** Our commission inside this deal's admin fees (kept by us, not deducted by the entity). */
+    public function entityCommission(): float
+    {
+        $r = self::deductionRule($this->finance_entity);
+
+        return $r['fees'] ? min(round((float) $r['commission'], 2), round((float) $this->admin_fees, 2)) : 0;
     }
 
     /** What the entity actually transfers: typed on the deal, else the financed amount minus the entity's deductions. */
@@ -160,15 +214,19 @@ class Deal extends Model
         if ($this->entity_net !== null) {
             return 'مكتوب يدوياً: ' . $f($this->entity_net) . ' (الممول ' . $f($this->financed_amount) . ')';
         }
+        if ((float) $this->financed_amount <= 0) {
+            return 'المبلغ الممول لسه متحددش (السعر − المقدم)';
+        }
         $parts = array_map(fn ($l, $v) => $l . ' (' . $f($v) . ')', array_keys($this->entityDeductions()), $this->entityDeductions());
+        $commission = $this->entityCommission() > 0 ? ' — العمولة ' . $f($this->entityCommission()) . ' من المصاريف الإدارية لينا ومش بتتخصم' : '';
 
-        return $parts ? 'الممول ' . $f($this->financed_amount) . ' − ' . implode(' − ', $parts) . ' = ' . $f($this->entityNet()) : 'الممول بالكامل ' . $f($this->financed_amount);
+        return ($parts ? 'الممول ' . $f($this->financed_amount) . ' − ' . implode(' − ', $parts) . ' = ' . $f($this->entityNet()) : 'الممول بالكامل ' . $f($this->financed_amount)) . $commission;
     }
 
-    /** Sale finished: the vehicle left our stock (executed, delivered, or a company installment running). */
+    /** Sale finished: the vehicle left our stock (executed, delivered, a company installment running, or a dealer took it). */
     public function isSold(): bool
     {
-        return $this->status === 'منفذة' || $this->delivery_date !== null || preg_match('/تم التسليم|تم البيع|تم الصرف/u', (string) $this->stage)
+        return $this->status === 'منفذة' || ($this->customer_id && $this->customer?->is_dealer) || $this->delivery_date !== null || preg_match('/تم التسليم|تم البيع|تم الصرف/u', (string) $this->stage)
             || ($this->status === 'جاري التقسيط' && ! $this->isEntityFinanced());
     }
 
