@@ -65,11 +65,11 @@ class DocumentService
             'broker_receipt' => ['title' => 'إقرار استلام سمسار (أمانة)', 'prefix' => 'B', 'agent' => false, 'icon' => 'fa-user-shield', 'group' => 'إقرارات', 'desc' => 'إقرار شخص باستلام مركبة لتوصيلها للعميل على سبيل الأمانة.',
                 'fields' => array_merge([['broker_name', 'اسم المستلم (السمسار)', 'text'], ['broker_nat', 'رقمه القومي', 'text'], ['broker_address', 'عنوانه', 'text']], $vehicle, [['purchase_date', 'تاريخ الشراء', 'date']], [['customer_name', 'لتوصيلها للسيد', 'text'], ['nat_id', 'الرقم القومي للعميل', 'text'], ['address', 'عنوان العميل', 'text'], ['delivered_by', 'تم التسليم بمعرفة', 'text']])],
             // listed as "إقرار استلام كمية", printed as just "إقرار استلام"
-            'bulk_receipt' => ['title' => 'إقرار استلام', 'list_title' => 'إقرار استلام كمية', 'prefix' => 'BK', 'agent' => false, 'icon' => 'fa-boxes-stacked', 'group' => 'إقرارات', 'desc' => 'إقرار استلام أكثر من مركبة (سطر لكل مركبة): تاجر استلمها بنفسه، أو شخص استلمها لتوصيلها لغيره على سبيل الأمانة — وفيه المدفوع والباقي والمديونية.',
+            'bulk_receipt' => ['title' => 'إقرار استلام', 'list_title' => 'إقرار استلام كمية', 'prefix' => 'BK', 'agent' => false, 'icon' => 'fa-boxes-stacked', 'group' => 'إقرارات', 'desc' => 'إقرار استلام أكثر من مركبة (سطر لكل مركبة): تاجر استلمها بنفسه، أو شخص استلمها لتوصيلها لغيره على سبيل الأمانة — وفيه المدفوع والباقي والمديونية (إجمالي الصفقة بيفضل في ملف العميل بس).',
                 'fields' => [['customer_name', 'اسم المستلم', 'text'], ['nat_id', 'الرقم القومي', 'text'], ['address', 'العنوان (المقيم)', 'text'],
                     ['items', 'المركبات (سطر لكل مركبة: النوع | الموديل | اللون | الشاسيه | الموتور)', 'textarea'],
                     ['to_name', 'لتوصيلها للسيد (سيبه فاضي لو المستلم هو المشتري نفسه — تاجر مثلاً)', 'text'], ['to_nat', 'رقمه القومي', 'text'], ['to_address', 'عنوانه (المقيم)', 'text'],
-                    ['price', 'إجمالي الصفقة (ج.م — اختياري)', 'money'], ['paid', 'المدفوع (ج.م)', 'money'], ['remaining', 'الباقي على الصفقة (ج.م)', 'money'],
+                    ['paid', 'المدفوع (ج.م)', 'money'], ['remaining', 'الباقي على الصفقة (ج.م)', 'money'],
                     ['debt', 'إجمالي مديونية المستلم كل الصفقات (ج.م)', 'money'],
                     ['delivered_by', 'تم التسليم بمعرفة', 'text'], ['phone', 'موبايل المستلم', 'text']]],
             'cash_received' => ['title' => 'إقرار استلام مبلغ نقدي', 'prefix' => 'CR', 'agent' => false, 'icon' => 'fa-hand-holding-dollar', 'group' => 'إقرارات', 'desc' => 'إقرار العميل باستلام مبلغ (مثل الكاش باك) وعدم الرجوع على الشركة.',
@@ -110,7 +110,7 @@ class DocumentService
         $p = [];
         if ($customer) {
             $p += [
-                'customer_name' => $customer->display_name, 'nat_id' => $customer->nat_id, 'address' => trim(implode(' - ', array_filter([$customer->address, $customer->district, $customer->governorate]))),
+                'customer_name' => $customer->display_name, 'nat_id' => $customer->nat_id, 'address' => self::fullAddress($customer),
                 'phone' => $customer->phone, 'code' => $customer->code,
                 // what he still owes on all his deals
                 'debt' => round((float) $customer->deals()->where('status', '!=', 'مفقودة')->sum('balance'), 2),
@@ -131,6 +131,15 @@ class DocumentService
         }
 
         return array_filter($p, fn ($v) => $v !== null && $v !== '');
+    }
+
+    /** "العنوان - المركز - المحافظة", without repeating what the address already says. */
+    public static function fullAddress(Customer $customer): string
+    {
+        $address = trim((string) $customer->address);
+        $parts = array_filter([$customer->district, $customer->governorate], fn ($p) => trim((string) $p) !== '' && ! str_contains($address, trim($p)));
+
+        return trim(implode(' - ', array_filter([$address, ...$parts])));
     }
 
     /** "النوع | الموديل | اللون | الشاسيه | الموتور" per vehicle of the deal, from stock when it is there. */

@@ -82,9 +82,9 @@ class DocumentController extends Controller
         return view('documents.form', ['type' => $document->type, 'def' => $def, 'values' => $document->data(), 'deal' => $document->deal, 'customer' => $document->customer, 'payment' => null, 'log' => $document, 'customerDeals' => $this->customerDeals($document->customer)]);
     }
 
-    public function store(Request $request, string $type)
+    /** The form's values, validated against the document type's fields. */
+    private function input(Request $request, array $def): array
     {
-        $def = $this->def($request, $type);
         $rules = ['deal_id' => ['nullable', 'integer'], 'customer_id' => ['nullable', 'integer']];
         foreach ($def['fields'] as $f) {
             $rules[$f[0]] = in_array($f[2], ['money', 'number'], true) ? ['nullable', 'numeric', 'min:0'] : ($f[2] === 'date' ? ['nullable', 'date'] : ['nullable', 'string', 'max:' . ($f[2] === 'textarea' ? 2000 : 300)]);
@@ -94,6 +94,37 @@ class DocumentController extends Controller
         foreach ($def['fields'] as $f) {
             $values[$f[0]] = $f[2] === 'check' ? $request->boolean($f[0]) : ($in[$f[0]] ?? null);
         }
+
+        return [$in, $values];
+    }
+
+    /** Correcting an issued document reprints it under the same number. */
+    public function update(Request $request, DocumentLog $document)
+    {
+        $this->authorizeLog($request, $document);
+        abort_if((bool) $document->legacy_ref, 404);
+        $def = $this->def($request, $document->type);
+        [, $values] = $this->input($request, $def);
+
+        $document->fill([
+            'customer_name' => $values['customer_name'] ?? ($values['to_name'] ?? null),
+            'product_name' => $values['product'] ?? ($values['goods'] ?? null), 'amount' => $values['price'] ?? ($values['amount'] ?? null), 'printed_at' => now(),
+        ]);
+        $document->setData($values);
+        $document->save();
+        $no = DocumentService::docNo($document->type, $document->serial);
+        Activity::log('document', $document, 'تعديل ' . $def['title'] . ' ' . $no);
+        if ($document->customer) {
+            Activity::customer($document->customer, 'document', 'تعديل ' . $def['title'] . ' ' . $no);
+        }
+
+        return redirect()->route('documents.show', $document)->with('success', 'تم تعديل المستند بنفس الرقم ' . $no . '.');
+    }
+
+    public function store(Request $request, string $type)
+    {
+        $def = $this->def($request, $type);
+        [$in, $values] = $this->input($request, $def);
 
         $deal = ! empty($in['deal_id']) ? Deal::with('customer')->find($in['deal_id']) : null;
         $customer = $deal?->customer ?? (! empty($in['customer_id']) ? Customer::find($in['customer_id']) : null);

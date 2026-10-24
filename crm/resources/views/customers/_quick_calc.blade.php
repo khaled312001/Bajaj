@@ -29,7 +29,7 @@
     const title = @json(\App\Support\Settings::get('offer_title', 'عرض تقسيط بجاج قنا'));
     const csrf = document.querySelector('meta[name=csrf-token]').content;
     const money = (v) => Math.round(+v || 0).toLocaleString('en-US');
-    let last = null, timer, saveUrl = null;
+    let last = null, timer, saveUrl = null, intoForm = null;
 
     // price next to any vehicle select
     const hint = (sel) => {
@@ -65,7 +65,7 @@
                 }
             } catch (e) { last = null; }
             $('qc-copy').style.display = $('qc-copy-fin').style.display = last ? '' : 'none';
-            $('qc-save').style.display = last && saveUrl ? '' : 'none';
+            $('qc-save').style.display = last && (saveUrl || intoForm) ? '' : 'none';
         }, 200);
     };
     const offer = (d) => [title, '', $('qc-product').value ? 'المنتج: ' + $('qc-product').value : null, 'السعر الكاش: ' + money(d.price) + ' جنيه',
@@ -81,6 +81,19 @@
     $('qc-copy-fin').addEventListener('click', () => last && last.finance_text && copy(last.finance_text, 'تم نسخ التفاصيل لجهة التقسيط'));
     // a requested vehicle keeps its calculation (the server recomputes it from these four inputs)
     $('qc-save').addEventListener('click', async () => {
+        // a vehicle not saved yet (add-vehicle / new customer form): the calculation goes with the form and is saved with the vehicle
+        if (last && intoForm) {
+            const set = (name, value) => {
+                let i = intoForm.querySelector('input[name="' + name + '"]');
+                if (!i) { i = document.createElement('input'); i.type = 'hidden'; i.name = name; intoForm.append(i); }
+                i.value = value;
+            };
+            set('calc_price', $('qc-price').value || 0); set('calc_down', $('qc-down').value || 0); set('calc_months', $('qc-months').value || 12); set('calc_plan', $('qc-plan').value);
+            intoForm.querySelectorAll('[data-qc-note]').forEach(n => { n.textContent = '✓ هيتحفظ مع المركبة: ' + money(last.monthly) + ' ج.م × ' + last.months + ' شهر (' + last.plan + ')'; });
+            toast('الحساب هيتحفظ مع المركبة لما تحفظ');
+            document.querySelector('[data-close="m-quick-calc"]').click();
+            return;
+        }
         if (!last || !saveUrl) return;
         $('qc-save').disabled = true;
         try {
@@ -101,6 +114,8 @@
         const name = b.dataset.qcProduct || (from ? from.value : '');
         if (name && [...$('qc-product').options].some(o => o.value === name)) { $('qc-product').value = name; $('qc-price').value = prices[name]; }
         saveUrl = b.dataset.qcSave || null;
+        intoForm = b.dataset.qcInto ? document.querySelector(b.dataset.qcInto) : null;
+        $('qc-save').innerHTML = '<i class="fa-solid fa-floppy-disk"></i> ' + (intoForm ? 'حفظ الحساب مع المركبة' : 'حفظ الحساب للمركبة');
         $('qc-save').disabled = false;
         // reopening a saved calculation shows it again, ready to recalculate and save
         const saved = b.dataset.qcSaved ? JSON.parse(b.dataset.qcSaved) : null;

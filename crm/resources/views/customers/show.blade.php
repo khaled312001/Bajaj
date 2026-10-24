@@ -22,7 +22,7 @@
             <span><i class="fa-solid fa-user-check"></i> المسؤول: <b>{{ $customer->assignee?->name ?? '—' }}</b></span>
         </div>
     </div>
-    <div style="text-align:center"><span class="badge dot {{ $customer->status_class }}" style="font-size:13px;padding:6px 16px">{{ $customer->status }}</span>
+    <div style="text-align:center">@unless($customer->is_dealer)<span class="badge dot {{ $customer->status_class }}" style="font-size:13px;padding:6px 16px">{{ $customer->status }}</span>@endunless
         @if($totalDebt > 0)<div style="margin-top:8px;font-weight:800">المديونية: <span class="num">@money($totalDebt)</span> ج.م</div>@endif</div>
 </div>
 
@@ -56,6 +56,9 @@
             <div class="info"><dt>واتساب</dt><dd class="num">{{ $customer->whatsapp ?: '—' }}</dd></div>
             <div class="info"><dt>الرقم القومي</dt><dd class="num">{{ $isAdmin ? ($customer->nat_id ?: '—') : ($customer->maskedNatId() ?: '—') }}</dd></div>
             <div class="info"><dt>المهنة</dt><dd>{{ $customer->job ?: '—' }}</dd></div>
+            @if($customer->is_dealer)
+                <div class="info"><dt>المعرض / المحل</dt><dd>{{ $customer->shop_name ?: '—' }}</dd></div>
+            @else
             <div class="info"><dt>قناة التواصل</dt><dd>{{ $customer->channel ?: '—' }}</dd></div>
             <div class="info"><dt>المركبة المطلوبة</dt><dd>{{ $customer->interest ?: '—' }}</dd></div>
             <div class="info"><dt>جدية العميل</dt><dd>{{ $customer->seriousness ?: '—' }}</dd></div>
@@ -63,12 +66,14 @@
             <div class="info"><dt>السن</dt><dd>{{ $customer->age ?: '—' }}</dd></div>
             <div class="info"><dt>المركبة السابقة</dt><dd>{{ $customer->previous_vehicle ?: '—' }}</dd></div>
             <div class="info"><dt>أول تواصل</dt><dd>{{ $customer->contacted_at?->format('Y/m/d H:i') ?: '—' }}</dd></div>
-            @if($customer->loss_reason)<div class="info" style="grid-column:1/-1"><dt>سبب عدم إتمام البيع</dt><dd style="font-weight:600;white-space:pre-line">{{ $customer->loss_reason }}</dd></div>@endif
+            @endif
+            @if($customer->loss_reason && ! $customer->is_dealer)<div class="info" style="grid-column:1/-1"><dt>سبب عدم إتمام البيع</dt><dd style="font-weight:600;white-space:pre-line">{{ $customer->loss_reason }}</dd></div>@endif
             <div class="info" style="grid-column:1/-1"><dt>العنوان</dt><dd>{{ $customer->address ?: '—' }}</dd></div>
             @if($customer->notes)<div class="info" style="grid-column:1/-1"><dt>ملاحظات</dt><dd style="font-weight:600;white-space:pre-line">{{ $customer->notes }}</dd></div>@endif
         </dl></div>
     </div>
 
+    @if(! $customer->is_dealer || $vehicles->count())
     <div class="card" style="margin-bottom:18px">
         <div class="card-head"><h3><i class="fa-solid fa-motorcycle"></i> المركبات المطلوبة ({{ $vehicles->count() }})</h3>
             <div class="row" style="gap:8px">
@@ -123,8 +128,15 @@
             @if($customer->status === 'مفقودة' && $customer->loss_reason)<div class="alert alert-warning mt"><i class="fa-solid fa-circle-info"></i><div>سبب عدم التنفيذ: {{ $customer->loss_reason }}</div></div>@endif
         </div>
     </div>
+    @endif
 
     <div id="deals">
+    @if($deals->count())
+        <div class="row between mb-s">
+            <b><i class="fa-solid fa-handshake" style="color:var(--blue-600)"></i> الصفقات ({{ $deals->count() }})</b>
+            @if($canEdit && auth()->user()->allows('deals', 'create'))<a class="btn btn-sm btn-primary no-print" href="{{ route('deals.create', $customer) }}"><i class="fa-solid fa-plus"></i> إضافة صفقة جديدة</a>@endif
+        </div>
+    @endif
     @if($customer->is_dealer && $deals->count())
         {{-- the dealer's wholesale account: every batch he took, what he paid and what he still owes --}}
         @php($liveDeals = $deals->where('status', '!=', 'مفقودة'))
@@ -293,7 +305,8 @@
     <form method="POST" action="{{ route('customers.vehicles.store', $customer) }}">@csrf
         <div class="modal-body">
             <div class="field"><label>المركبة <span class="req">*</span></label><select class="input" name="vehicle" id="f-vehicle-add" required data-price-hint>@include('partials.vehicle_options', ['selected' => ''])</select>
-                <div class="row between wrap" style="gap:6px;margin-top:6px"><b class="price-hint small" style="color:var(--green)"></b>@if(auth()->user()->allows('calculator'))<button type="button" class="btn btn-xs btn-soft" data-open="m-quick-calc" data-qc data-qc-from="#f-vehicle-add"><i class="fa-solid fa-calculator"></i> احسب القسط</button>@endif</div></div>
+                <div class="row between wrap" style="gap:6px;margin-top:6px"><b class="price-hint small" style="color:var(--green)"></b>@if(auth()->user()->allows('calculator'))<button type="button" class="btn btn-xs btn-soft" data-open="m-quick-calc" data-qc data-qc-from="#f-vehicle-add" data-qc-into="#m-vehicle-add form"><i class="fa-solid fa-calculator"></i> احسب القسط</button>@endif</div>
+                <div class="small" data-qc-note style="color:var(--green);font-weight:700"></div></div>
             @include('customers._vehicle_entity_fields')
             <div class="field mt"><label>ملاحظة</label><input class="input" name="notes" maxlength="250"></div>
         </div>

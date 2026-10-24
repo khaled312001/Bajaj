@@ -5,7 +5,7 @@
 
 @section('content')
 @php($isAdmin = auth()->user()->isAdmin())
-<form method="POST" action="{{ $editing ? route('customers.update', $customer) : route('customers.store') }}" class="card">
+<form method="POST" action="{{ $editing ? route('customers.update', $customer) : route('customers.store') }}" class="card" id="customer-form">
     @csrf @if($editing) @method('PUT') @endif
     @if(! $editing && ($leadId ?? request('lead_id')))<input type="hidden" name="lead_id" value="{{ $leadId ?? request('lead_id') }}">@endif
     <div class="card-body">
@@ -21,32 +21,47 @@
             <div class="field"><label>هاتف بديل</label><input class="input" name="alt_phone" value="{{ old('alt_phone', $customer->alt_phone) }}" inputmode="tel" dir="ltr" style="text-align:right"></div>
             <div class="field"><label>واتساب</label><input class="input" name="whatsapp" value="{{ old('whatsapp', $customer->whatsapp) }}" inputmode="tel" dir="ltr" style="text-align:right"></div>
             <div class="field"><label>المهنة</label><input class="input" name="job" value="{{ old('job', $customer->job) }}"></div>
-            <div class="field"><label class="check" style="margin-top:28px"><input type="hidden" name="is_dealer" value="0"><input type="checkbox" name="is_dealer" value="1" id="f-dealer" @checked(old('is_dealer', $customer->is_dealer))> تاجر / معرض (بياخد كمية)</label>
-                <div class="hint">التاجر مش عميل عادي: بتسجل له صفقة بكل المكن اللي خدها وبتتخصم من المخزن مباعة باسمه.</div></div>
-            <div class="field span-2" id="f-shop-box"><label>اسم المعرض / المحل</label><input class="input" name="shop_name" value="{{ old('shop_name', $customer->shop_name) }}" maxlength="150" placeholder="مثلاً معرض ابوعبده - القصير"></div>
+            @if($isAdmin)
+                {{-- only the manager marks a dealer --}}
+                <div class="field"><label class="check" style="margin-top:28px"><input type="hidden" name="is_dealer" value="0"><input type="checkbox" name="is_dealer" value="1" id="f-dealer" @checked(old('is_dealer', $customer->is_dealer))> تاجر / معرض (بياخد كمية)</label>
+                    <div class="hint">التاجر مش عميل عادي: بتسجل له صفقة بكل المكن اللي خدها وبتتخصم من المخزن مباعة باسمه.</div></div>
+                <div class="field span-2" id="f-shop-box"><label>اسم المعرض / المحل</label><input class="input" name="shop_name" value="{{ old('shop_name', $customer->shop_name) }}" maxlength="150" placeholder="مثلاً معرض ابوعبده - القصير"></div>
+            @elseif($customer->is_dealer)
+                <div class="field span-2"><label>النوع</label><div><span class="badge purple"><i class="fa-solid fa-store"></i> تاجر{{ $customer->shop_name ? ' — ' . $customer->shop_name : '' }}</span></div></div>
+            @endif
 
             <div class="form-section"><i class="fa-solid fa-location-dot"></i> العنوان والتصنيف</div>
             @include('partials.geo_fields', ['govValue' => old('governorate', $customer->governorate), 'centerValue' => old('district', $customer->district)])
             <div class="field"><label>العنوان التفصيلي</label><input class="input" name="address" value="{{ old('address', $customer->address) }}"></div>
-            <div class="field"><label>قناة التواصل</label><select class="input" name="channel"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('channel') as $g)<option @selected(old('channel', $customer->channel) === $g)>{{ $g }}</option>@endforeach</select></div>
-            <div class="field"><label>المركبة المطلوبة</label><select class="input" name="interest" id="f-interest" data-price-hint>@include('partials.vehicle_options', ['selected' => old('interest', $customer->interest)])</select>
-                <div class="row between wrap" style="gap:6px;margin-top:6px"><b class="price-hint small" style="color:var(--green)"></b>@if(auth()->user()->allows('calculator'))<button type="button" class="btn btn-xs btn-soft" data-open="m-quick-calc" data-qc data-qc-from="#f-interest"><i class="fa-solid fa-calculator"></i> احسب القسط</button>@endif</div></div>
-            <div class="field"><label>جدية العميل</label><select class="input" name="seriousness"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('seriousness') as $g)<option @selected(old('seriousness', $customer->seriousness) === $g)>{{ $g }}</option>@endforeach</select></div>
-            <div class="field"><label>الفرع</label><select class="input" name="branch"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('branch') as $g)<option @selected(old('branch', $customer->branch) === $g)>{{ $g }}</option>@endforeach</select></div>
-            <div class="field"><label>السن</label><input class="input" type="number" name="age" min="15" max="100" value="{{ old('age', $customer->age) }}"></div>
-            <div class="field"><label>المركبة السابقة</label><input class="input" name="previous_vehicle" value="{{ old('previous_vehicle', $customer->previous_vehicle) }}" placeholder="مثال: توكتوك 2020"></div>
-            <div class="field"><label>حالة العميل <span class="req">*</span></label><select class="input" name="status" required>@foreach(\App\Models\Customer::STATUSES as $s)<option @selected(old('status', $customer->status) === $s)>{{ $s }}</option>@endforeach</select></div>
+            <div class="field cust-only"><label>قناة التواصل</label><select class="input" name="channel"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('channel') as $g)<option @selected(old('channel', $customer->channel) === $g)>{{ $g }}</option>@endforeach</select></div>
+            <div class="field cust-only"><label>المركبة المطلوبة</label><select class="input" name="interest" id="f-interest" data-price-hint>@include('partials.vehicle_options', ['selected' => old('interest', $customer->interest)])</select>
+                <div class="row between wrap" style="gap:6px;margin-top:6px"><b class="price-hint small" style="color:var(--green)"></b>@if(auth()->user()->allows('calculator'))<button type="button" class="btn btn-xs btn-soft" data-open="m-quick-calc" data-qc data-qc-from="#f-interest" @unless($editing) data-qc-into="#customer-form" @endunless><i class="fa-solid fa-calculator"></i> احسب القسط</button>@endif</div>
+                <div class="small" data-qc-note style="color:var(--green);font-weight:700"></div></div>
+            <div class="field cust-only"><label>جدية العميل</label><select class="input" name="seriousness"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('seriousness') as $g)<option @selected(old('seriousness', $customer->seriousness) === $g)>{{ $g }}</option>@endforeach</select></div>
+            <div class="field cust-only"><label>الفرع</label><select class="input" name="branch"><option value="">— اختر —</option>@foreach(\App\Models\Lookup::list('branch') as $g)<option @selected(old('branch', $customer->branch) === $g)>{{ $g }}</option>@endforeach</select></div>
+            <div class="field cust-only"><label>السن</label><input class="input" type="number" name="age" min="15" max="100" value="{{ old('age', $customer->age) }}"></div>
+            <div class="field cust-only"><label>المركبة السابقة</label><input class="input" name="previous_vehicle" value="{{ old('previous_vehicle', $customer->previous_vehicle) }}" placeholder="مثال: توكتوك 2020"></div>
+            <div class="field cust-only"><label>حالة العميل <span class="req">*</span></label><select class="input" name="status" required>@foreach(\App\Models\Customer::STATUSES as $s)<option @selected(old('status', $customer->status) === $s)>{{ $s }}</option>@endforeach</select></div>
             @if($isAdmin)
                 <div class="field"><label>الموظف المسؤول</label><select class="input" name="assigned_to"><option value="{{ auth()->id() }}">أنا ({{ auth()->user()->name }})</option>@foreach($staff->where('id', '!=', auth()->id()) as $u)<option value="{{ $u->id }}" @selected(old('assigned_to', $customer->assigned_to) == $u->id)>{{ $u->name }}</option>@endforeach</select></div>
             @endif
-            <div class="field span-3"><label>سبب عدم إتمام البيع</label><textarea class="input" name="loss_reason" rows="2">{{ old('loss_reason', $customer->loss_reason) }}</textarea></div>
+            <div class="field span-3 cust-only"><label>سبب عدم إتمام البيع</label><textarea class="input" name="loss_reason" rows="2">{{ old('loss_reason', $customer->loss_reason) }}</textarea></div>
             <div class="field span-3"><label>ملاحظات</label><textarea class="input" name="notes" rows="3">{{ old('notes', $customer->notes) }}</textarea></div>
 
             <script>
             (function () {
+                // a dealer is not a retail customer: no requested vehicle, channel, branch, seriousness or status to fill
                 const box = document.getElementById('f-dealer'), shop = document.getElementById('f-shop-box');
-                const sync = () => { shop.style.display = box.checked ? '' : 'none'; };
-                box.addEventListener('change', sync); sync();
+                const dealer = () => box ? box.checked : @json((bool) $customer->is_dealer);
+                const sync = () => {
+                    if (shop) shop.style.display = dealer() ? '' : 'none';
+                    document.querySelectorAll('.cust-only').forEach(el => {
+                        el.style.display = dealer() ? 'none' : '';
+                        el.querySelectorAll('[required], [data-req]').forEach(i => { i.dataset.req = '1'; i.required = !dealer(); });
+                    });
+                };
+                if (box) box.addEventListener('change', sync);
+                sync();
             })();
             </script>
 

@@ -139,7 +139,11 @@ class CustomerController extends Controller
         Activity::customer($customer, 'created', 'تم إدخال العميل بواسطة ' . $user->name);
 
         if ($customer->interest) {
-            $customer->vehicles()->create(['vehicle' => $customer->interest, 'created_by' => $user->id]);
+            $vehicle = $customer->vehicles()->create(['vehicle' => $customer->interest, 'created_by' => $user->id]);
+            // the calculation made on the new-customer form stays with the requested vehicle
+            if ($calc = self::calcInput($request->validate(self::calcRules()))) {
+                $this->applyVehicleCalc($vehicle, $calc, $user);
+            }
         }
 
         if ($request->filled('lead_id')) {
@@ -241,12 +245,15 @@ class CustomerController extends Controller
         $data = $request->validate([
             'vehicle' => ['required', 'string', 'max:150'],
             'notes' => ['nullable', 'string', 'max:250'],
-        ] + self::vehicleEntityRules());
-        $customer->vehicles()->create($data + ['created_by' => $request->user()->id, 'entity_sent_at' => ! empty($data['finance_entity']) ? now() : null]);
+        ] + self::vehicleEntityRules() + self::calcRules());
+        $calc = self::calcInput($data);
+        $data = array_diff_key($data, self::calcRules());
+        $vehicle = $customer->vehicles()->create($data + ['created_by' => $request->user()->id, 'entity_sent_at' => ! empty($data['finance_entity']) ? now() : null]);
         $customer->update(['interest' => $data['vehicle']]);
         Activity::customer($customer, 'vehicle', 'إضافة مركبة مطلوبة: ' . $data['vehicle']);
+        $saved = $calc ? $this->applyVehicleCalc($vehicle, $calc, $request->user()) : null;
 
-        return back()->with('success', 'تمت إضافة المركبة.');
+        return back()->with('success', 'تمت إضافة المركبة.' . ($saved ? ' واتحفظ معاها حساب القسط ' . number_format($saved['monthly']) . ' ج.م × ' . $saved['months'] . ' شهر.' : ''));
     }
 
     /** Where a requested vehicle was sent: finance entity, its branch, the stage there, and notes. */
@@ -283,21 +290,50 @@ class CustomerController extends Controller
             'months' => ['required', 'integer', 'min:1', 'max:84'],
             'plan' => ['nullable', 'string', 'max:80'],
         ]);
+        $calc = $this->applyVehicleCalc($vehicle, $in, $request->user());
+        abort_unless($calc, 422, 'لا يوجد مبلغ للتقسيط — راجع السعر والمقدم.');
+
+        return response()->json(['ok' => true, 'calc' => $calc]);
+    }
+
+    /** The calculation made while adding a vehicle (or a new customer) is kept with the vehicle once it is saved. */
+    public static function calcRules(): array
+    {
+        return [
+            'calc_price' => ['nullable', 'numeric', 'min:1', 'max:999999999'],
+            'calc_down' => ['nullable', 'numeric', 'min:0', 'max:999999999'],
+            'calc_months' => ['nullable', 'integer', 'min:1', 'max:84'],
+            'calc_plan' => ['nullable', 'string', 'max:80'],
+        ];
+    }
+
+    /** Recompute the installment from price / down / months / plan and keep it on the vehicle (null when nothing is financed). */
+    private function applyVehicleCalc(\App\Models\CustomerVehicle $vehicle, array $in, $user): ?array
+    {
         $r = \App\Support\InstallmentCalculator::calculate(['price' => $in['price'], 'down' => $in['down'] ?? 0, 'months' => $in['months'], 'type' => 'table', 'plan' => $in['plan'] ?? null]);
-        abort_unless($r['monthly'] > 0, 422, 'لا يوجد مبلغ للتقسيط — راجع السعر والمقدم.');
+        if (! ($r['monthly'] > 0)) {
+            return null;
+        }
 
         $calc = ['price' => $r['price'], 'down' => $r['down'], 'months' => $r['months'], 'plan' => $r['plan'] ?? ($in['plan'] ?? null), 'monthly' => $r['monthly'],
             'fees' => $r['fees'], 'upfront' => $r['upfront'], 'financed' => $r['financed'], 'grand_total' => $r['grand_total'],
-            'saved_at' => now()->format('Y-m-d H:i'), 'saved_by' => $request->user()->name];
+            'saved_at' => now()->format('Y-m-d H:i'), 'saved_by' => $user->name];
         $fill = ['calc' => $calc];
         // the plan names the entity the offer was made for, unless the employee already chose one
         if (! $vehicle->finance_entity && \App\Models\Deal::isOutsideEntity($calc['plan']) && in_array($calc['plan'], Lookup::list('finance_entity'), true)) {
             $fill += ['finance_entity' => $calc['plan'], 'entity_sent_at' => now()];
         }
         $vehicle->update($fill);
-        Activity::customer($customer, 'vehicle', 'حفظ حساب القسط لـ ' . $vehicle->vehicle . ': ' . number_format($calc['monthly']) . ' ج.م × ' . $calc['months'] . ' شهر (' . $calc['plan'] . ')');
+        Activity::customer($vehicle->customer, 'vehicle', 'حفظ حساب القسط لـ ' . $vehicle->vehicle . ': ' . number_format($calc['monthly']) . ' ج.م × ' . $calc['months'] . ' شهر (' . $calc['plan'] . ')');
 
-        return response()->json(['ok' => true, 'calc' => $calc]);
+        return $calc;
+    }
+
+    /** calc_* from a form → the calculation inputs (null when no calculation was saved with it). */
+    private static function calcInput(array $data): ?array
+    {
+        return ! empty($data['calc_price']) && ! empty($data['calc_months'])
+            ? ['price' => $data['calc_price'], 'down' => $data['calc_down'] ?? 0, 'months' => $data['calc_months'], 'plan' => $data['calc_plan'] ?? null] : null;
     }
 
     public static function vehicleEntityRules(): array
@@ -388,8 +424,11 @@ class CustomerController extends Controller
             'alt_phone' => Customer::normalizePhone($request->input('alt_phone')),
             'whatsapp' => Customer::normalizePhone($request->input('whatsapp')),
         ]);
+        // only the manager marks a customer as a dealer
+        $isAdmin = $request->user()->isAdmin();
+        $dealer = $isAdmin ? $request->boolean('is_dealer') : (bool) $customer?->is_dealer;
 
-        return $request->validate([
+        $data = $request->validate([
             'name' => ['required', 'string', 'max:150'],
             'nat_id' => ['nullable', 'digits:14'],
             'job' => ['nullable', 'string', 'max:120'],
@@ -408,12 +447,24 @@ class CustomerController extends Controller
             'is_dealer' => ['nullable', 'boolean'],
             'shop_name' => ['nullable', 'string', 'max:150'],
             'loss_reason' => ['nullable', 'string', 'max:3000'],
-            'status' => ['required', Rule::in(Customer::STATUSES)],
+            'status' => [$dealer ? 'nullable' : 'required', Rule::in(Customer::STATUSES)],
             'notes' => ['nullable', 'string', 'max:3000'],
         ], [
             'phone.regex' => 'رقم الهاتف غير صالح.',
             'nat_id.digits' => 'الرقم القومي يجب أن يكون 14 رقماً.',
         ]);
+        if (! $isAdmin) {
+            unset($data['is_dealer'], $data['shop_name']);
+        }
+        if ($dealer) {
+            // a dealer's work is his batches, not a sales follow-up
+            $data['status'] = $data['status'] ?? $customer?->status ?? 'مفتوحة';
+            if (! $customer) {
+                $data['interest'] = null;
+            }
+        }
+
+        return $data;
     }
 
     public static function dealRules(): array

@@ -100,6 +100,7 @@ Route::middleware(['auth', 'guard.app'])->group(function () {
     Route::get('/documents/{document}', [DocumentController::class, 'show'])->name('documents.show');
     Route::get('/documents/{document}/edit', [DocumentController::class, 'edit'])->name('documents.edit');
     Route::get('/documents/{document}/pdf', [DocumentController::class, 'pdf'])->name('documents.pdf');
+    Route::put('/documents/{document}', [DocumentController::class, 'update'])->middleware('throttle:60,1')->name('documents.update');
     Route::delete('/documents/{document}', [DocumentController::class, 'destroy'])->middleware('role:admin')->name('documents.destroy');
 
     // stock (read-only list for staff; management for admin)

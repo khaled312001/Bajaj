@@ -98,7 +98,7 @@ class SettingsController extends Controller
                 continue;
             }
             $table = [];
-            foreach (preg_split('/\R+/', trim((string) ($pl['table'] ?? ''))) as $line) {
+            foreach (preg_split('/\R+/u', trim((string) ($pl['table'] ?? ''))) as $line) {
                 if (preg_match('/^\s*(\d{1,3})\s*[=:،,]\s*([0-9]+(?:\.[0-9]+)?)\s*$/u', $line, $m) && (float) $m[2] >= 1) {
                     $table[(int) $m[1]] = (float) $m[2];
                 } elseif (trim($line) !== '') {

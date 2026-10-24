@@ -4,7 +4,10 @@
 @section('sub', 'راجع البيانات ثم أصدر المستند')
 
 @section('content')
-<div class="card mb" id="doc-picker" data-lookup="{{ route('documents.customers') }}" data-base="{{ route('documents.create', $type) }}" data-vehicles="{{ route('vehicles.lookup') }}">
+@if($log)
+<div class="alert alert-info mb"><i class="fa-solid fa-pen"></i><div>بتعدّل المستند <b dir="ltr">{{ \App\Services\DocumentService::docNo($log->type, $log->serial) }}</b> — هيتحفظ ويتطبع بنفس الرقم.</div></div>
+@endif
+<div class="card mb" id="doc-picker" @if($log) style="display:none" @endif data-lookup="{{ route('documents.customers') }}" data-base="{{ route('documents.create', $type) }}" data-vehicles="{{ route('vehicles.lookup') }}">
     <div class="card-head"><h3><i class="fa-solid fa-user-check"></i> العميل والمركبة</h3>
         @if($customer)<a class="btn btn-xs btn-ghost" href="{{ route('documents.create', $type) }}">تغيير العميل</a>@endif</div>
     <div class="card-body"><div class="form-grid">
@@ -25,8 +28,8 @@
 </div>
 <datalist id="dl-chassis"></datalist>
 
-<form method="POST" action="{{ route('documents.store', $type) }}" class="card">
-    @csrf
+<form method="POST" action="{{ $log ? route('documents.update', $log) : route('documents.store', $type) }}" class="card">
+    @csrf @if($log) @method('PUT') @endif
     <input type="hidden" name="deal_id" value="{{ $deal?->id }}"><input type="hidden" name="customer_id" value="{{ $customer?->id }}">
     <div class="card-head"><h3><i class="fa-solid fa-file-pen"></i> بيانات المستند</h3>
         @if($customer)<span class="badge blue">{{ $customer->name }} — {{ $customer->code }}</span>@endif</div>
@@ -50,7 +53,7 @@
             @endif
         @endforeach
         </div>
-        <div class="form-actions"><button class="btn btn-primary"><i class="fa-solid fa-file-pdf"></i> إصدار المستند (PDF)</button>
+        <div class="form-actions"><button class="btn btn-primary"><i class="fa-solid fa-file-pdf"></i> {{ $log ? 'حفظ التعديل بنفس الرقم' : 'إصدار المستند (PDF)' }}</button>
             <a class="btn btn-ghost" href="{{ route('documents.index') }}">إلغاء</a></div>
     </div>
 </form>

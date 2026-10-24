@@ -78,7 +78,7 @@ class LeadForm
         $label = trim(Str::limit(strip_tags((string) ($f['label'] ?? '')), 80, ''));
         $options = [];
         if ($type === 'select') {
-            $list = is_array($f['options'] ?? null) ? $f['options'] : preg_split('/\R+/', (string) ($f['options'] ?? ''));
+            $list = is_array($f['options'] ?? null) ? $f['options'] : preg_split('/\R+/u', (string) ($f['options'] ?? ''));
             foreach ($list as $o) {
                 $o = trim(Str::limit(strip_tags((string) $o), 100, ''));
                 if ($o !== '' && ! in_array($o, $options, true)) {

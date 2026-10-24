@@ -42,7 +42,8 @@
         <nav class="sidebar-nav">
             <div class="nav-label">الرئيسية</div>
             @if($me->allows('dashboard'))<a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}"><i class="fa-solid fa-chart-pie"></i> لوحة التحكم</a>@endif
-            @if($me->allows('customers'))<a href="{{ route('customers.index') }}" class="nav-link {{ request()->routeIs('customers.*') ? 'active' : '' }}"><i class="fa-solid fa-users"></i> العملاء@if($badge['new_customers'])<span class="nav-badge green" title="عملاء جدد اتعيّنوا لك">{{ $badge['new_customers'] }}</span>@endif</a>@endif
+            @if($me->allows('customers'))<a href="{{ route('customers.index') }}" class="nav-link {{ request()->routeIs('customers.*') && request('kind') !== 'dealer' ? 'active' : '' }}"><i class="fa-solid fa-users"></i> العملاء@if($badge['new_customers'])<span class="nav-badge green" title="عملاء جدد اتعيّنوا لك">{{ $badge['new_customers'] }}</span>@endif</a>@endif
+            @if($me->allows('customers'))<a href="{{ route('customers.index', ['kind' => 'dealer']) }}" class="nav-link {{ request()->routeIs('customers.index') && request('kind') === 'dealer' ? 'active' : '' }}"><i class="fa-solid fa-store"></i> التجار</a>@endif
             @if($me->allows('followups'))<a href="{{ route('followups.index') }}" class="nav-link {{ request()->routeIs('followups.*') ? 'active' : '' }}"><i class="fa-solid fa-calendar-check"></i> المتابعات
                 @if($badge['fu'])<span class="nav-badge">{{ $badge['fu'] }}</span>@endif</a>@endif
             <a href="{{ route('chat.index') }}" class="nav-link {{ request()->routeIs('chat.*') ? 'active' : '' }}"><i class="fa-solid fa-comments"></i> المحادثات

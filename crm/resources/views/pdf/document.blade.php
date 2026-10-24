@@ -125,7 +125,7 @@
 @case('bulk_receipt')
     {{-- documents issued before the "to deliver to" wording reprint exactly as they were signed --}}
     @php($legacy = ! array_key_exists('to_name', $d))
-    @php($rows = array_values(array_filter(preg_split('/\R+/', trim((string) ($d['items'] ?? ''))), fn ($l) => trim($l) !== '')))
+    @php($rows = array_values(array_filter(preg_split('/\R+/u', trim((string) ($d['items'] ?? ''))), fn ($l) => trim($l) !== '')))
     <p class="text serif" style="margin-bottom:{{ 2 * $gap }}mm">أقر أنا / <b>{{ $v('customer_name') }}</b> — رقم قومي: {{ $v('nat_id') }}<br>المقيم / {{ $v('address') }}<br>بأنني استلمت من شركة <b>{{ $co }}</b> المركبات التالي بياناتها:</p>
     <table class="data" style="margin-bottom:{{ 2 * $gap }}mm"><thead><tr><th>#</th><th>النوع</th><th>الموديل</th><th>اللون</th><th>الشاسيه</th><th>الموتور</th></tr></thead><tbody>
     @foreach($rows as $line)
@@ -146,24 +146,22 @@
         {{-- what was paid on these vehicles and what is still owed --}}
         @php($has = fn ($k) => isset($d[$k]) && $d[$k] !== '' && $d[$k] !== null)
         @php($money = fn ($k) => number_format((float) $d[$k]) . ' جنيه')
-        @if($has('price') || $has('paid') || $has('remaining') || $has('debt'))
+        @if($has('paid') || $has('remaining') || $has('debt'))
             @php($mcell = 'padding:' . (1.4 * $gap) . 'mm 3mm;border:0.3mm solid #cbd5e1;font-size:11.5pt;font-weight:bold;white-space:nowrap;text-align:center')
-            @php($parts = array_filter(['إجمالي الصفقة' => $has('price') ? $money('price') : null, 'المدفوع' => $has('paid') ? $money('paid') : null, 'الباقي' => $has('remaining') ? $money('remaining') : null]))
+            {{-- the deal total stays in the customer's file, never on the receipt --}}
+            @php($parts = array_filter(['المدفوع' => $has('paid') ? $money('paid') : null, 'الباقي' => $has('remaining') ? $money('remaining') : null]))
             <table style="width:100%;border-collapse:collapse;margin:{{ $gap }}mm 0;background:#f8fbff">
                 @if($parts)<tr>@foreach($parts as $label => $amount)<td style="{{ $mcell }}">{{ $label }}: <span style="color:{{ $label === 'الباقي' ? '#b91c1c' : '#2e3192' }}">{{ $amount }}</span></td>@endforeach</tr>@endif
                 @if($has('debt'))<tr><td colspan="{{ max(1, count($parts)) }}" style="{{ $mcell }}">إجمالي المديونية المستحقة عليه حتى تاريخه: <span style="color:#b91c1c">{{ $money('debt') }}</span></td></tr>@endif
             </table>
         @endif
         <p class="text serif" style="margin-top:{{ $gap }}mm">وهذا إقرار مني بذلك.</p>
-        {{-- delivered by (right) | the recipient (middle) | the date with the thumbprint right next to it (left) --}}
+        {{-- the recipient on the right: his name, mobile, signature, the date and his thumbprint under each other; delivered by on the left --}}
         @php($cell = fn (array $lines) => '<table style="width:100%">' . implode('', array_map(fn ($t) => '<tr><td style="padding:' . (1.6 * $gap) . 'mm 0;font-size:12pt;font-weight:bold">' . $t . '</td></tr>', $lines)) . '</table>')
         <table style="width:100%;margin-top:{{ 4 * $gap }}mm"><tr>
-            <td style="width:31%;vertical-align:top">{!! $cell(['تم التسليم بمعرفة :', 'الاسم : ' . e($v('delivered_by')), 'التوقيع : ................']) !!}</td>
-            <td style="width:35%;vertical-align:top">{!! $cell(array_merge(['المستلم : ' . e($v('customer_name'))], ! empty($d['phone']) ? ['الموبايل : ' . e($d['phone'])] : [], ['التوقيع : ................'])) !!}</td>
-            <td style="vertical-align:top"><table style="width:100%"><tr>
-                <td style="vertical-align:top;padding:{{ 1.6 * $gap }}mm 0;font-size:12pt;font-weight:bold;white-space:nowrap">التاريخ :<br>{{ $docDate ?? now()->format('Y/m/d') }}</td>
-                <td style="vertical-align:top;padding:{{ 1.6 * $gap }}mm 2mm 0 0;font-size:12pt;font-weight:bold">البصمة :<table><tr><td style="width:24mm;height:{{ 18 * min($gap, 1.3) }}mm;border:0.3mm dashed #94a3b8">&nbsp;</td></tr></table></td>
-            </tr></table></td>
+            <td style="width:58%;vertical-align:top">{!! $cell(array_merge(['المستلم : ' . e($v('customer_name'))], ! empty($d['phone']) ? ['الموبايل : ' . e($d['phone'])] : [],
+                ['التوقيع : ................', 'التاريخ : ' . e($docDate ?? now()->format('Y/m/d')), 'البصمة :'])) !!}</td>
+            <td style="vertical-align:top">{!! $cell(['تم التسليم بمعرفة :', 'الاسم : ' . e($v('delivered_by')), 'التوقيع : ................']) !!}</td>
         </tr></table>
     @endif
 @break
